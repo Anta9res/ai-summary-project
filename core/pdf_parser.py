@@ -6,11 +6,9 @@ PDF解析模块
 import os
 import re
 import glob
-import tempfile
-import shutil
 from pathlib import Path
 from typing import Any, List, Dict, Tuple, Optional
-from core.ocr_processor import OCRProcessor
+
 
 MAX_PDF_SIZE_MB = 500
 
@@ -21,7 +19,6 @@ class PDFParser:
     def __init__(self, qwen_client_module, api_key: str = ""):
         self.qwen_client = qwen_client_module
         self.api_key = api_key
-        self.ocr_processor = OCRProcessor()
         self.stats = {
             'total': 0,
             'success': 0,
@@ -86,37 +83,9 @@ class PDFParser:
         Returns:
             (成功标志, 错误信息)
         """
-        temp_ocr_path = None
-        process_path = pdf_path
-        
         try:
-            # 如果启用了OCR，先进行OCR处理
-            if enable_ocr:
-                if not self.ocr_processor.available:
-                    return False, "OCR requested but OCRmyPDF is not available/installed."
-                
-                # 创建临时文件存放OCR结果
-                # 使用与原文件相同的目录以避免跨驱动器问题，或者使用系统临时目录
-                # 这里使用系统临时目录
-                fd, temp_ocr_path = tempfile.mkstemp(suffix="_ocr.pdf")
-                os.close(fd)
-                
-                print(f"🔄 正在对 {os.path.basename(pdf_path)} 进行OCR处理...")
-                success, msg = self.ocr_processor.process_pdf(
-                    input_path=pdf_path,
-                    output_path=temp_ocr_path,
-                    redo_ocr=force_ocr 
-                )
-                
-                if success:
-                    process_path = temp_ocr_path
-                    print(f"✅ OCR完成，继续解析...")
-                else:
-                    print(f"⚠️  OCR失败 ({msg})，将尝试直接解析原文件")
-                    # OCR失败不一定致命，尝试直接解析
-            
             temp_path, saved_path = self.qwen_client.extract_content_from_pdf(
-                process_path,
+                pdf_path,
                 output_path,
                 api_key=self.api_key
             )
@@ -128,13 +97,6 @@ class PDFParser:
                 
         except Exception as e:
             return False, str(e)
-        finally:
-            # 清理临时OCR文件
-            if temp_ocr_path and os.path.exists(temp_ocr_path):
-                try:
-                    os.remove(temp_ocr_path)
-                except Exception as e:
-                    print(f"⚠️  无法清理临时OCR文件: {e}")
     
     def process_all(
         self,

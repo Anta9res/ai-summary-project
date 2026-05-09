@@ -61,13 +61,24 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
         │     ├── qwen_client.py      # OpenAI-compatible client (DashScope)，所有函数接受 api_key 参数
         │     └── core/post_processor.py  # 格式修复 + 6 种质量检测规则 + 跨运行重置
         ├── core/integrator.py        # 合并笔记 → 完整复习笔记 + 索引 + README
-        └── core/ocr_processor.py     # OCR 预处理（ocrmypdf）
+        ├── core/paddleocr_adapter.py  # PaddleOCR 文档解析（单文件模式）
+        └── core/chapter_splitter.py   # 按章切割（prunedResult + markdown 互补检测 + 裸章标题识别）
 
-### Pipeline 4 阶段
+### Pipeline 流程
+
+**常规模式** (`--stage all`)：
 1. **parse** — `pdf_parser.py` 提取 PDF 文本 → `raw_texts/`，含 500MB 文件大小限制
 2. **generate** — `note_generator.py` 调用 Qwen API → `notes/`，生成后自动跑 `post_processor.py` 质量检测
 3. **quality_check** — 自动：结构完整性、最小长度（<500字符）、标题结构、代码块残留、重复内容、必要标注。每次运行前自动重置 issues（防止跨运行累积）
 4. **integrate** — `integrator.py` 合并所有笔记 → `完整复习笔记.md` + `笔记索引.md`
+
+**单文件模式** (`--single-file --stage all`)：
+1. **PaddleOCR预处理** — `paddleocr_adapter.py` 调用 PaddleOCR API 解析 PDF → `chapter_splitter.py` 按章切割 → `raw_texts/`（含按章拆分的 `*_提取文本.md` 文件）
+2. **generate** — `note_generator.py` 从拆分文本逐章生成笔记 → `notes/`（`text_list_override` 驱动）
+3. **integrate** — 合并 + 质量检测 → `完整复习笔记.md` + `笔记索引.md`
+   - `--single-file`：单文件模式开关
+   - `--split-strategy paddleocr`：章节检测策略（仅 paddleocr，llm 待实现）
+   - PaddleOCR 缓存：`{pdf_name}_paddleocr_full.json`（写入 PDF 所在目录，删除可强制重新解析）
 
 ### 扩展模块
 - `extensions/knowledge_graph/` — LightRAG 知识图谱（`lightrag_adapter.py`）+ ChromaDB 向量检索（`retrieval_tool.py`）+ Function Calling 问答（`qa_system.py`）+ KB 管理（`kb_manager.py`）

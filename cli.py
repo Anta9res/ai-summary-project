@@ -6,8 +6,6 @@ import argparse
 import sys
 import os
 import re
-import networkx as nx
-
 # 依赖检查 - 提供友好的错误提示
 def check_dependencies():
     """检查必需的依赖包是否已安装"""
@@ -213,11 +211,26 @@ def create_parser() -> argparse.ArgumentParser:
         action='store_true',
         help='启用OCR预处理 (用于纯图片PDF，需安装OCRmyPDF/Tesseract)'
     )
-    
+
     parser.add_argument(
         '--force-ocr',
         action='store_true',
         help='强制执行OCR，即使PDF已包含文本层 (OCRmyPDF --force-ocr)'
+    )
+
+    # 单文件模式
+    parser.add_argument(
+        '--single-file',
+        action='store_true',
+        help='单文件模式：将单个大PDF按章节拆分后分别生成笔记'
+    )
+
+    parser.add_argument(
+        '--split-strategy',
+        type=str,
+        choices=['paddleocr'],
+        default='paddleocr',
+        help='章节检测策略（当前仅 paddleocr，llm 策略待实现）'
     )
     
     parser.add_argument(
@@ -251,13 +264,19 @@ def validate_inputs(args) -> bool:
     if not os.path.isdir(args.input):
         print(f"❌ 错误: 输入路径不是目录 - {args.input}")
         return False
-    
+
     # 检查是否有PDF文件
     pdf_files = [f for f in os.listdir(args.input) if f.endswith('.pdf')]
+
+    if args.single_file:
+        if len(pdf_files) != 1:
+            print(f"❌ 单文件模式要求输入目录恰好包含1个PDF，当前: {len(pdf_files)}")
+            return False
+        return True
+
     if not pdf_files:
         print(f"❌ 错误: 输入目录中没有PDF文件 - {args.input}")
         return False
-    
     return True
 
 
@@ -271,19 +290,28 @@ def run_pipeline(args, config: ConfigManager, logger):
     
     # 根据stage参数执行
     if args.stage == 'all':
-        # 运行完整Pipeline
         logger.info("启动完整Pipeline")
-        
-        results = pipeline.run_full_pipeline(
-            input_dir=args.input,
-            output_base=args.output,
-            prompt_version=args.prompt_version,
-            skip_existing=skip_existing,
-            verbose=args.verbose and not args.quiet,
-            enable_ocr=args.ocr,
-            force_ocr=args.force_ocr
-        )
-        
+
+        if args.single_file:
+            results = pipeline.run_single_file_pipeline(
+                input_dir=args.input,
+                output_base=args.output,
+                prompt_version=args.prompt_version,
+                split_strategy=args.split_strategy,
+                skip_existing=skip_existing,
+                verbose=args.verbose and not args.quiet,
+            )
+        else:
+            results = pipeline.run_full_pipeline(
+                input_dir=args.input,
+                output_base=args.output,
+                prompt_version=args.prompt_version,
+                skip_existing=skip_existing,
+                verbose=args.verbose and not args.quiet,
+                enable_ocr=args.ocr,
+                force_ocr=args.force_ocr
+            )
+
         if results['success']:
             logger.info(f"Pipeline执行成功，耗时{results['total_time']:.1f}秒")
             return 0
@@ -352,6 +380,7 @@ def run_pipeline(args, config: ConfigManager, logger):
 
 
 def _build_mindmap_from_notes(notes_dir: str, subject_name: str):
+    import networkx as nx
     G = nx.Graph()
     G.add_node(subject_name, type="subject")
     notes_path = os.path.join(notes_dir, '') if not os.path.isdir(notes_dir) else notes_dir
@@ -591,7 +620,15 @@ def main():
         # 验证输入
         if not validate_inputs(args):
             return 1
-    
+
+    # 自动检测：单个大PDF建议使用 --single-file
+    if not args.single_file and not is_kg_command:
+        pdf_files = [f for f in os.listdir(args.input) if f.endswith('.pdf')]
+        if len(pdf_files) == 1:
+            file_size_mb = os.path.getsize(os.path.join(args.input, pdf_files[0])) / (1024 * 1024)
+            if file_size_mb > 10:
+                print(f"💡 检测到单个大PDF ({file_size_mb:.1f}MB)，建议使用 --single-file 按章节拆分\n")
+
     # 初始化日志
     if not args.no_log:
         logger = get_logger(
