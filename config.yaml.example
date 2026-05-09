@@ -1,0 +1,40 @@
+# Fall-Network Pipeline 配置文件示例
+# 复制此文件为 config.yaml 并填入你的配置
+
+# 模型配置
+model:
+  provider: "dashscope"                              # 模型提供商
+  name: "qwen-long"                                 # 模型名称
+  api_key: "your_api_key_here"                      # ⚠️ 必需：你的API密钥
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  temperature: 0.7                                   # 温度参数(0.0-1.0)
+  max_retries: 3                                     # API调用最大重试次数
+
+# 提示词配置
+prompt:
+  version: "v3.0"                                    # v2.0 或 v3.0(推荐)
+  exam_focused: true                                 # 应试化开关
+
+# Pipeline配置
+pipeline:
+  skip_existing: true                                # 断点续传(推荐开启)
+  quality_threshold: 0.95                            # 质量检测阈值(0.0-1.0)
+  retry_on_failure: true                             # 失败自动重试
+  max_workers: 1                                     # 并发数(当前限制为1)
+
+# 输出配置
+output:
+  structure: "by_subject"                            # 输出结构：by_subject/by_date
+  keep_intermediate: true                            # 保留中间文件
+
+# 日志配置
+logging:
+  level: "INFO"                                      # DEBUG/INFO/WARNING/ERROR
+  file_enabled: true                                 # 启用日志文件
+  console_enabled: true                              # 启用控制台输出
+
+# 环境变量优先级说明：
+# API密钥可通过以下方式配置（优先级从高到低）：
+# 1. 环境变量 DASHSCOPE_API_KEY
+# 2. config.yaml 中的 model.api_key
+# 3. 命令行参数（未来支持）

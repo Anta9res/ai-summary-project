@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-summary-project"
+version = "1.0.0"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.0.0",
+    "pyyaml>=6.0",
+    "unstructured>=0.10.0",
+    "pdfminer.six>=20221105",
+    "python-dotenv>=1.0.0",
+    "python-magic-bin>=0.4.14",
+    "ocrmypdf>=14.0.0",
+    "lightrag-hku>=0.0.1",
+    "chromadb>=0.4.0",
+    "networkx>=3.0",
+    "pyvis>=0.3.0",
+    "matplotlib>=3.5.0",
+    "pillow>=10.0.0",
+]
+
+[project.scripts]
+ai-summary = "cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

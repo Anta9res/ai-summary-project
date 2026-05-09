@@ -1,0 +1,260 @@
+# Fall-Network 课程笔记生成Pipeline
+
+## 📚 项目简介
+
+基于通义千问qwen-long模型的智能课程笔记生成系统，支持从PDF课件自动生成结构化、应试导向的复习笔记。
+
+## ✨ 核心特性
+
+### 笔记生成功能
+- ✅ **模块化架构**: 清晰的模块划分，易于维护和扩展
+- ✅ **应试导向**: v3.0提示词专为考试服务，包含题型标注和答题要点
+- ✅ **断点续传**: 智能跳过已处理文件，支持中断后继续执行
+- ✅ **质量检测**: 6种自动质量检测规则，生成质量报告
+- ✅ **笔记整合**: 自动生成完整笔记、索引和README
+
+### 知识图谱功能（NEW! 🔥）
+- ✅ **知识图谱构建**: 基于LightRAG自动提取实体和关系
+- ✅ **智能问答**: Function Calling驱动的知识库问答系统
+- ✅ **思维导图生成**: 支持Mermaid/Markmap/HTML多种格式
+- ✅ **多学科管理**: 支持创建和管理多个学科知识库
+- ✅ **向量检索**: ChromaDB支持的语义检索
+- ✅ **命令行工具**: 友好的CLI界面，支持灵活配置
+
+## 🚀 快速开始
+
+### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 配置API密钥
+
+方式1：环境变量
+```bash
+export DASHSCOPE_API_KEY="your_api_key_here"
+```
+
+方式2：配置文件
+编辑`config.yaml`，填入API密钥
+
+### 基础使用
+
+```bash
+# 完整流程（推荐）
+D:\anaconda3\python.exe cli.py --input 课件/ --output output/
+
+# 使用v2.0提示词
+python cli.py --input 课件/ --prompt-version v2.0
+
+# 仅PDF解析
+python cli.py --input 课件/ --stage parse
+
+# 仅笔记生成
+python cli.py --input 课件/ --stage generate
+
+# 仅笔记整合
+python cli.py --input 课件/ --stage integrate --output output/
+```
+
+### 知识图谱使用
+
+```bash
+# 1. 构建知识图谱
+D:\anaconda3\python.exe cli.py --build-kg --subject Fall-Network --input FN_output/notes/
+
+# 2. 知识库问答
+D:\anaconda3\python.exe cli.py --qa "什么是TCP三次握手？" --subject Fall-Network
+
+# 3. 交互式问答
+D:\anaconda3\python.exe cli.py --qa-interactive --subject Fall-Network
+
+# 4. 生成思维导图
+D:\anaconda3\python.exe cli.py --generate-mindmap --subject Fall-Network --mindmap-format markmap
+
+# 5. 查看知识库信息
+D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
+```
+
+**详细文档**: 查看 [KNOWLEDGE_GRAPH.md](./KNOWLEDGE_GRAPH.md)
+
+## 📖 使用指南
+
+### CLI参数说明
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--input`, `-i` | 输入目录（PDF文件） | 必需 |
+| `--output`, `-o` | 输出目录 | `output` |
+| `--stage` | 执行阶段 | `all` |
+| `--prompt-version` | 提示词版本 | `v3.0` |
+| `--skip-existing` | 断点续传 | `True` |
+| `--no-skip` | 强制重新生成 | - |
+| `--config` | 配置文件 | `config.yaml` |
+| `--verbose`, `-v` | 详细输出 | `True` |
+| `--quiet`, `-q` | 静默模式 | - |
+| `--log-dir` | 日志目录 | `logs` |
+| `--validate-config` | 验证配置 | - |
+
+### Pipeline阶段
+
+1. **PDF解析** (`parse`): 提取PDF文本内容
+2. **笔记生成** (`generate`): 使用AI生成结构化笔记
+3. **质量检测** (自动): 检测并修复格式问题
+4. **笔记整合** (`integrate`): 合并生成完整文档
+
+### 提示词版本
+
+- **v2.0**: 重要性分级版本，包含⭐标记
+- **v3.0**: 应试化版本（推荐），包含题型标注、答题要点、对比表格
+
+## 📁 项目结构
+
+```
+Fall-Network/
+├── core/                    # 核心功能模块
+│   ├── pdf_parser.py       # PDF解析器
+│   ├── note_generator.py   # 笔记生成器
+│   ├── post_processor.py   # 后处理器（格式修复+质量检测）
+│   ├── integrator.py       # 笔记整合器
+│   └── pipeline.py         # Pipeline编排器
+├── utils/                   # 工具模块
+│   ├── file_utils.py       # 文件操作工具
+│   ├── config_loader.py    # 配置加载器
+│   ├── statistics.py       # 统计面板
+│   └── logger.py           # 日志系统
+├── config/                  # 配置模块
+│   ├── prompts.py          # 提示词管理
+│   └── config_manager.py   # 配置管理器
+├── cli.py                   # 命令行入口
+├── config.yaml              # 配置文件
+├── qwen_client.py           # Qwen API客户端
+└── README.md                # 本文档
+```
+
+## 🔧 配置说明
+
+### config.yaml配置文件
+
+```yaml
+model:
+  name: qwen-long
+  api_key: ""           # 留空，从环境变量读取
+  base_url: ""
+
+prompt:
+  version: v3.0         # v2.0 / v3.0
+  use_custom: false
+
+pipeline:
+  skip_existing: true   # 断点续传
+  verbose: true         # 详细输出
+  parallel: false       # 并行处理（未来支持）
+
+output:
+  base_dir: output
+  raw_texts_dir: raw_texts
+  notes_dir: notes
+  backup_enabled: true
+```
+
+## 📊 输出说明
+
+### 目录结构
+
+```
+output/
+├── raw_texts/              # PDF提取的原始文本
+│   ├── 数据通信与网络-第1讲_提取文本.md
+│   └── ...
+├── notes/                  # 生成的笔记
+│   ├── 第1讲_笔记.md
+│   ├── 第2讲_笔记.md
+│   ├── ...
+│   └── README.md           # 笔记使用说明
+├── 完整复习笔记.md          # 所有笔记合并
+└── 笔记索引.md              # 快速导航索引
+```
+
+### 笔记特性（v3.0）
+
+- ✅ 题型标注（📝名词解释/📊计算题/✅选择题等）
+- ✅ 答题要点说明
+- ✅ 对比辨析表格
+- ✅ 考试重点标注
+- ✅ 易混淆点总结
+- ✅ 计算示例
+
+## 🔍 质量检测
+
+自动检测6种常见问题：
+1. 结构完整性（缺少核心知识点标记）
+2. 最小长度要求（<500字符）
+3. 标题结构检测
+4. 代码块残留问题
+5. 重复内容检测
+6. 必要标注检测（💡🔗等）
+
+## 🐛 故障排查
+
+### API调用失败
+
+- 检查API密钥是否正确配置
+- 检查网络连接
+- 查看日志文件：`logs/Pipeline_*.log`
+
+### 文件生成失败
+
+- 确保PDF文件可正常访问
+- 检查输出目录权限
+- 使用`--verbose`查看详细错误信息
+
+### 断点续传不工作
+
+- 使用`--no-skip`强制重新生成
+- 检查输出目录中的文件是否完整
+
+## 📝 开发说明
+
+### 添加新模块
+
+1. 在`core/`或`utils/`目录创建新模块
+2. 在Pipeline中集成调用
+3. 更新配置文件和CLI参数（如需）
+
+### 自定义提示词
+
+1. 编辑`config/prompts.py`
+2. 添加新版本的提示词方法
+3. 在`PromptManager`中注册新版本
+
+### 扩展质量检测规则
+
+编辑`core/post_processor.py`的`quality_check`方法
+
+## 🎯 未来规划
+
+- [ ] 并行处理支持（多PDF同时处理）
+- [ ] 知识图谱构建（LightRAG集成）
+- [ ] 思维导图生成
+- [ ] RAG问答系统
+- [ ] Web界面
+
+## 📄 许可证
+
+MIT License
+
+## 👥 贡献
+
+欢迎提交Issue和Pull Request！
+
+## 📧 联系方式
+
+- 项目地址：[GitHub仓库链接]
+- 问题反馈：[Issue页面]
+
+---
+
+**版本**: v1.0.0  
+**最后更新**: 2025-11-17

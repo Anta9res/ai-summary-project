@@ -1,0 +1,90 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+课程笔记生成 Pipeline：将 PPT/PDF 课件通过通义千问 qwen-long 模型转换为结构化、应试导向的复习笔记。附带知识图谱（LightRAG + ChromaDB）和思维导图功能。
+
+## Essential Commands
+
+### PPT → PDF 转换（前置步骤）
+```bash
+D:\anaconda3\python.exe ppt2pdf.py "C:\Users\LENOVO\Desktop\Fall-Network\<课程名>"
+```
+依赖本地 Microsoft PowerPoint（win32com），仅 Windows 可用。
+
+### 主 Pipeline
+```bash
+# 完整流程（parse → generate → integrate）
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --prompt-version v3.0
+
+# 仅 PDF 解析
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --stage parse
+
+# 仅笔记生成
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --stage generate
+
+# 仅笔记整合
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --stage integrate --output <输出目录>
+```
+`PYTHONIOENCODING=utf-8` 是 Windows 下必须的，否则 emoji 字符会导致 `UnicodeEncodeError`（GBK 编码不兼容）。
+始终使用 `D:\anaconda3\python.exe`，不要用系统 `python`。
+
+### 知识图谱
+```bash
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --build-kg --subject <学科名> --input <notes目录>
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --qa "问题" --subject <学科名>
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --qa-interactive --subject <学科名>
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --generate-mindmap --subject <学科名> --mindmap-format markmap
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --kb-info --subject <学科名>
+```
+
+### 测试
+```bash
+D:\anaconda3\python.exe -m pytest tests/ -v
+```
+
+## Architecture
+
+```
+cli.py                     # 唯一入口：参数解析 → ConfigManager → Pipeline / KG 命令
+  │                          run_kg_commands 拆分为 _cmd_build_kg / _cmd_update_kg /
+  │                          _cmd_qa / _cmd_qa_interactive / _cmd_generate_mindmap / _cmd_kb_info
+  ├── config/config_manager.py   # YAML 配置加载、.env 加载、验证
+  │     └── config/prompts.py    # v2.0/v3.0 提示词模板
+  ├── utils/logger.py            # 日志（文件 + 控制台）
+  ├── utils/statistics.py        # 阶段计时 + 统计报告
+  └── core/pipeline.py           # 流程编排（拆分为 4 个阶段方法 + run_stage 路由）
+        ├── core/pdf_parser.py        # unstructured + pdfminer 提取 PDF 文本
+        ├── core/note_generator.py    # 调用 qwen_client → Qwen API 生成笔记
+        │     ├── qwen_client.py      # OpenAI-compatible client (DashScope)，所有函数接受 api_key 参数
+        │     └── core/post_processor.py  # 格式修复 + 6 种质量检测规则 + 跨运行重置
+        ├── core/integrator.py        # 合并笔记 → 完整复习笔记 + 索引 + README
+        └── core/ocr_processor.py     # OCR 预处理（ocrmypdf）
+
+### Pipeline 4 阶段
+1. **parse** — `pdf_parser.py` 提取 PDF 文本 → `raw_texts/`，含 500MB 文件大小限制
+2. **generate** — `note_generator.py` 调用 Qwen API → `notes/`，生成后自动跑 `post_processor.py` 质量检测
+3. **quality_check** — 自动：结构完整性、最小长度（<500字符）、标题结构、代码块残留、重复内容、必要标注。每次运行前自动重置 issues（防止跨运行累积）
+4. **integrate** — `integrator.py` 合并所有笔记 → `完整复习笔记.md` + `笔记索引.md`
+
+### 扩展模块
+- `extensions/knowledge_graph/` — LightRAG 知识图谱（`lightrag_adapter.py`）+ ChromaDB 向量检索（`retrieval_tool.py`）+ Function Calling 问答（`qa_system.py`）+ KB 管理（`kb_manager.py`）
+- `extensions/mindmap/` — Mermaid/Markmap/HTML 思维导图生成（`visualizer.py`, `mindmap_generator.py`）
+- `ppt2pdf.py` — 独立工具，Windows COM 调用 PowerPoint 批量转换
+- `deploy_production.py` — 生产环境部署脚本
+- `scripts_backup/` — 已替代的旧脚本（`fix_latex_format.py`, `generate_notes.py` 等），不要修改或使用。`config_loader.py` 已彻底删除（功能并入 `config_manager.py`）
+
+## Key Conventions
+
+- skip_existing 默认开启（断点续传），检查 output 目录是否已有对应文件
+- 提示词版本 v3.0 是应试化版本（题型标注、答题要点、对比表格），v2.0 是重要性分级版本
+- API 密钥通过环境变量 `DASHSCOPE_API_KEY` 或 `.env` 文件设置，优先级: env > .env > config.yaml
+- `qwen_client.py` 所有函数接受 `api_key` 参数，不持有模块级密钥常量
+- 密钥注入链路: `ConfigManager.api_key → Pipeline → PDFParser / NoteGenerator` 以及 `ConfigManager.api_key → run_kg_commands → QASystem`
+- `extract_lecture_number()` 返回 `float`，支持 "第3-4讲" → 3.4，未知讲次返回 999.0
+- `integrator.py` 中 `extract_lecture_number = staticmethod(PDFParser.extract_lecture_number)` 引用统一实现
+- 当前 API 限制 max_workers=1，不支持并行处理
+- 使用 `pyproject.toml` 管理依赖，`pip install -e .` 后可移除 `sys.path.insert()` 依赖
+- `config_manager.py` 使用 `copy.deepcopy()` 防止 DEFAULT_CONFIG 被意外修改

@@ -1,0 +1,26 @@
+# 数据通信与网络复习项目 - Python依赖包
+
+# PDF解析相关
+unstructured>=0.10.0
+pdfminer.six>=20221105
+python-magic-bin>=0.4.14  # Windows环境需要
+ocrmypdf>=14.0.0          # PDF OCR工具
+
+# OpenAI兼容客户端（用于通义千问API）
+openai>=1.0.0
+
+# 其他工具
+python-dotenv>=1.0.0  # 环境变量管理（可选）
+pyyaml>=6.0  # YAML配置文件解析
+
+# 知识图谱与RAG相关（阶段七新增）
+lightrag-hku>=0.0.1  # LightRAG核心库
+chromadb>=0.4.0  # 向量数据库
+networkx>=3.0  # 图计算库
+numpy>=1.24.0  # 数值计算
+nano-vectordb>=0.1.0  # LightRAG默认向量数据库
+
+# 思维导图可视化相关（阶段九新增）
+pyvis>=0.3.0  # 交互式网络图可视化
+matplotlib>=3.5.0  # 图表绘制
+pillow>=9.0.0  # 图像处理
