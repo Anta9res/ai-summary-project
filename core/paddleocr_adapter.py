@@ -155,15 +155,17 @@ class PaddleOCRAdapter:
             return all_results[0]
 
         merged = dict(all_results[0])
-        merged_layouts = list(merged.get("result", {}).get("layoutParsingResults", []))
+        merged_layouts = list(self._get_layouts(merged))
 
         for result in all_results[1:]:
-            layouts = result.get("result", {}).get("layoutParsingResults", [])
-            merged_layouts.extend(layouts)
+            merged_layouts.extend(self._get_layouts(result))
 
+        # 写入正确的嵌套路径：result.result.layoutParsingResults
         if "result" not in merged:
             merged["result"] = {}
-        merged["result"]["layoutParsingResults"] = merged_layouts
+        if "result" not in merged["result"]:
+            merged["result"]["result"] = {}
+        merged["result"]["result"]["layoutParsingResults"] = merged_layouts
 
         merged_texts = [merged.get("text", "")]
         for result in all_results[1:]:

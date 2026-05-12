@@ -22,7 +22,7 @@ PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --outp
 # 使用 opencode.ai / kimi-k2.6
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
 
-# 单文件模式：大PDF按章节拆分（需 PaddleOCR）
+# 单文件模式：大PDF按章节拆分（需 PaddleOCR；输入仅含 1 个 PDF 且 > 5MB 自动启用）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --single-file --input <含单个PDF的目录> --output <输出目录>
 
 # 仅 PDF 解析
@@ -116,3 +116,5 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
 - 遗留：`use_custom` 自定义提示路径功能未实现，当前仅支持内置 v3.0
 - 使用 `pyproject.toml` 管理依赖，`pip install -e .` 后可移除 `sys.path.insert()` 依赖
 - `config_manager.py` 使用 `copy.deepcopy()` 防止 DEFAULT_CONFIG 被意外修改
+- `_merge_batch_results` 使用 `_get_layouts()` 统一读写 `result.result.layoutParsingResults`（两层嵌套结构），修复分批合并丢失数据
+- 单文件自动分流：`cli.py` 检测到单 PDF > 5MB 时自动设置 `args.single_file = True`

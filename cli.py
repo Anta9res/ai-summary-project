@@ -642,13 +642,14 @@ def main():
         if not validate_inputs(args):
             return 1
 
-    # 自动检测：单个大PDF建议使用 --single-file
+    # 自动检测：单个大PDF自动启用单文件模式
     if not args.single_file and not is_kg_command:
-        pdf_files = [f for f in os.listdir(args.input) if f.endswith('.pdf')]
+        pdf_files = [f for f in os.listdir(args.input) if f.lower().endswith('.pdf')]
         if len(pdf_files) == 1:
             file_size_mb = os.path.getsize(os.path.join(args.input, pdf_files[0])) / (1024 * 1024)
-            if file_size_mb > 10:
-                print(f"💡 检测到单个大PDF ({file_size_mb:.1f}MB)，建议使用 --single-file 按章节拆分\n")
+            if file_size_mb > 5:
+                print(f"🔍 检测到单个大PDF ({file_size_mb:.1f}MB)，自动启用单文件模式（按章拆分）\n")
+                args.single_file = True
 
     # 初始化日志
     if not args.no_log:

@@ -116,7 +116,12 @@ class PostProcessor:
             if markdown_end_idx + 1 < len(lines):
                 fixed_lines.extend(lines[markdown_end_idx+1:])
             return '\n'.join(fixed_lines)
-        
+
+        # 如果仅开标签存在（max_tokens 截断导致无闭合标签），移除开标签行
+        if markdown_start_idx != -1:
+            lines.pop(markdown_start_idx)
+            return '\n'.join(lines)
+
         return content
     
     def clean_trailing_markers(self, content: str) -> str:
@@ -297,28 +302,27 @@ class PostProcessor:
         """
         # 修复1: 移除 $$ 后的多余空格
         content = re.sub(r'\$\$\s+\n', '$$\n', content)
-        
+
+        # 修复1b: 移除 $$ 后空行（仅行首 $$ — 开标签特征，避免误触闭标签）
+        # $$ 后紧跟空行使 MathJax/KaTeX 将公式块解释为空，后续内容按普通文本处理
+        content = re.sub(r'^\$\$\n\n+', '$$\n', content, flags=re.MULTILINE)
+
+        # 修复1c: 移除 $$ 前空格（前置空格 → 部分渲染器无法识别）
+        content = re.sub(r'[ \t]+\$\$', '$$', content)
+
         # 修复2: 移除公式块内的Markdown引用符号 "> "
         # 匹配 $$\n> 开头的行，移除所有 "> "前缀
-        content = re.sub(r'\$\$\n((?:>\s+[^\n]+\n)+)>\s+\$\$', 
-                         lambda m: '$$\n' + re.sub(r'^>\s+', '', m.group(1), flags=re.MULTILINE) + '$$', 
+        content = re.sub(r'\$\$\n((?:>\s+[^\n]+\n)+)>\s+\$\$',
+                         lambda m: '$$\n' + re.sub(r'^>\s+', '', m.group(1), flags=re.MULTILINE) + '$$',
                          content)
-        
+
         # 修复3: 确保公式块后有空行（匹配emoji）
         content = re.sub(
-            r'\$\$\n(📌|📊|✏️|📝|✅|📄|🔄)', 
-            r'$$\n\n\1', 
+            r'[ \t]*\$\$\n(📌|📊|✏️|📝|✅|📄|🔄)',
+            r'$$\n\n\1',
             content
         )
-        
-        # 修复4: 确保公式块后紧跟普通文字也有空行
-        # 但不要匹配公式块($符号开头)或已经有空行的情况
-        content = re.sub(
-            r'\$\$\n([^\n$])', 
-            r'$$\n\n\1', 
-            content
-        )
-        
+
         return content
     
     def check_latex_format(self, content: str, file_path: str) -> List[Dict]:
@@ -342,8 +346,23 @@ class PostProcessor:
                 'severity': 'warning'
             })
         
-        # 检测2: 公式块后没有空行（宽松检测）
-        # 只检测明显的问题，允许一些边界情况
+        # 检测2: $$ 后存在空行（防御层：修复应先于检测运行，此处兜底）
+        if re.search(r'\$\$\n\n', content):
+            issues.append({
+                'file': file_path,
+                'issue': 'LaTeX公式块 $$ 后存在空行（公式将无法渲染）',
+                'severity': 'error'
+            })
+
+        # 检测3: $$ 前存在多余空格（部分渲染器无法识别）
+        if re.search(r'[ \t]+\$\$', content):
+            issues.append({
+                'file': file_path,
+                'issue': 'LaTeX公式块 $$ 前存在多余空格',
+                'severity': 'warning'
+            })
+
+        # 检测4: 公式块后没有空行（emoji 紧贴 $$）
         problematic_patterns = re.findall(r'\$\$\n(📌|📊|✏️|📝|✅|📄|🔄)', content)
         if problematic_patterns:
             issues.append({
@@ -351,5 +370,5 @@ class PostProcessor:
                 'issue': f'发现{len(problematic_patterns)}处公式块后缺少空行',
                 'severity': 'warning'
             })
-        
+
         return issues

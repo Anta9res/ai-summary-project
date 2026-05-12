@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.0 — 分批合并修复与自动分流 (2026-05-12)
+
+### Bug 修复 — PaddleOCR 分批合并路径错误
+
+- `_merge_batch_results` 读写 `layoutParsingResults` 时 JSON 路径错误：写入 `result.layoutParsingResults` 但读取走 `result.result.layoutParsingResults`（两层嵌套）
+- 导致 >100 页 PDF 的分批处理结果中，第 2、3 批（页 101+）的 layout 数据全部丢失
+- 修复：改用 `_get_layouts()` 统一读写，写入正确嵌套路径 `result.result.layoutParsingResults`
+
+### 功能 — 单文件自动分流
+
+- 输入目录仅含 1 个 PDF 且 > 5MB 时，自动启用 `--single-file` 模式（无需手动传参）
+- 阈值从 10MB 降至 5MB
+
 ### Bug 修复 — fileid:// 协议兼容 (2026-05-12)
 
 - `chat_with_file` 中 system_prompt 不再与 `fileid://` 拼接

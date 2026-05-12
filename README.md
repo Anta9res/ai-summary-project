@@ -51,7 +51,7 @@ PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --output o
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --output output/ \
   --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
 
-# 单文件模式：大PDF按章拆分生成
+# 单文件模式：大PDF按章拆分生成（输入仅含1个PDF且>5MB时自动启用）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --single-file --input 民法/ --output output/
 
 # 仅PDF解析
@@ -94,7 +94,7 @@ D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 | `--input`, `-i` | 输入目录（PDF文件） | 必需 |
 | `--output`, `-o` | 输出目录 | `output` |
 | `--stage` | 执行阶段：`all`/`parse`/`generate`/`integrate` | `all` |
-| `--single-file` | 单文件模式：大PDF按章拆分 | `False` |
+| `--single-file` | 单文件模式：大PDF按章拆分（单PDF>5MB自动启用） | `False` |
 | `--split-strategy` | 章节检测策略（当前仅 `paddleocr`） | `paddleocr` |
 | `--model` | 模型名称 | `qwen-long` |
 | `--endpoint` | API端点（OpenAI兼容） | DashScope |
