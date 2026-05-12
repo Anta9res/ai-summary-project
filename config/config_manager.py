@@ -18,12 +18,13 @@ class ConfigManager:
         'model': {
             'name': 'qwen-long',
             'api_key': '',  # 从环境变量或配置文件读取
-            'base_url': ''
+            'base_url': '',
+            'temperature': 0.7,
+            'max_tokens': 4096,
+            'top_p': 1.0,
         },
         'prompt': {
             'version': 'v3.0',
-            'use_custom': False,
-            'custom_path': ''
         },
         'pipeline': {
             'skip_existing': True,
@@ -66,6 +67,10 @@ class ConfigManager:
         # 环境变量优先于配置文件 (env > .env > config.yaml)
         if 'DASHSCOPE_API_KEY' in os.environ:
             config['model']['api_key'] = os.environ['DASHSCOPE_API_KEY']
+        elif 'OPENCODE_API_KEY' in os.environ:
+            config['model']['api_key'] = os.environ['OPENCODE_API_KEY']
+        elif 'API_KEY' in os.environ:
+            config['model']['api_key'] = os.environ['API_KEY']
 
         return config
     

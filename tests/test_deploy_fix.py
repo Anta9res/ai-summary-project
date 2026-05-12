@@ -16,6 +16,7 @@ def test_deploy_production_parameters():
     # 测试1: 检查文件存在
     deploy_file = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "scripts",
         "deploy_production.py"
     )
     
@@ -94,8 +95,8 @@ def test_deploy_production_parameters():
     print("✅ 6. 状态显示增强")
     
     print("\n现在deploy_production.py可以安全使用：")
-    print("  默认用法: python deploy_production.py")
-    print("  强制重新生成: python deploy_production.py --force-regenerate")
+    print("  默认用法: python scripts/deploy_production.py")
+    print("  强制重新生成: python scripts/deploy_production.py --force-regenerate")
     
     return True
 

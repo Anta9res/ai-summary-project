@@ -99,11 +99,26 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--prompt-version',
         type=str,
-        choices=['v2.0', 'v3.0'],
+        choices=['v3.0'],
         default='v3.0',
         help='提示词版本(默认: v3.0应试化版本)'
     )
-    
+
+    # 模型配置
+    parser.add_argument(
+        '--model',
+        type=str,
+        default=None,
+        help='模型名称(覆盖 config.yaml 中的 model.name)'
+    )
+
+    parser.add_argument(
+        '--endpoint',
+        type=str,
+        default=None,
+        help='API 端点 URL(覆盖 config.yaml 中的 model.base_url)'
+    )
+
     # 配置文件
     parser.add_argument(
         '--config',
@@ -282,6 +297,12 @@ def validate_inputs(args) -> bool:
 
 def run_pipeline(args, config: ConfigManager, logger):
     """运行Pipeline"""
+    # CLI 覆盖 config.yaml 中的模型配置
+    if args.model:
+        config.config['model']['name'] = args.model
+    if args.endpoint:
+        config.config['model']['base_url'] = args.endpoint
+
     # 创建Pipeline实例
     pipeline = Pipeline(qwen_client, config=config.config)
     

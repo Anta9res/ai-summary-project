@@ -10,14 +10,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### PPT → PDF 转换（前置步骤）
 ```bash
-D:\anaconda3\python.exe ppt2pdf.py "C:\Users\LENOVO\Desktop\Fall-Network\<课程名>"
+D:\anaconda3\python.exe scripts/ppt2pdf.py "C:\Users\LENOVO\Desktop\Fall-Network\<课程名>"
 ```
 依赖本地 Microsoft PowerPoint（win32com），仅 Windows 可用。
 
 ### 主 Pipeline
 ```bash
-# 完整流程（parse → generate → integrate）
+# 完整流程（DashScope / qwen-long）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --prompt-version v3.0
+
+# 使用 opencode.ai / kimi-k2.6
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
 
 # 仅 PDF 解析
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --stage parse
@@ -52,7 +55,7 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
   │                          run_kg_commands 拆分为 _cmd_build_kg / _cmd_update_kg /
   │                          _cmd_qa / _cmd_qa_interactive / _cmd_generate_mindmap / _cmd_kb_info
   ├── config/config_manager.py   # YAML 配置加载、.env 加载、验证
-  │     └── config/prompts.py    # v2.0/v3.0 提示词模板
+  │     └── config/prompts.py    # v3.0 提示词模板 (system + user 元组)
   ├── utils/logger.py            # 日志（文件 + 控制台）
   ├── utils/statistics.py        # 阶段计时 + 统计报告
   └── core/pipeline.py           # 流程编排（拆分为 4 个阶段方法 + run_stage 路由）
@@ -83,19 +86,29 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
 ### 扩展模块
 - `extensions/knowledge_graph/` — LightRAG 知识图谱（`lightrag_adapter.py`）+ ChromaDB 向量检索（`retrieval_tool.py`）+ Function Calling 问答（`qa_system.py`）+ KB 管理（`kb_manager.py`）
 - `extensions/mindmap/` — Mermaid/Markmap/HTML 思维导图生成（`visualizer.py`, `mindmap_generator.py`）
-- `ppt2pdf.py` — 独立工具，Windows COM 调用 PowerPoint 批量转换
-- `deploy_production.py` — 生产环境部署脚本
-- `scripts_backup/` — 已替代的旧脚本（`fix_latex_format.py`, `generate_notes.py` 等），不要修改或使用。`config_loader.py` 已彻底删除（功能并入 `config_manager.py`）
+- `scripts/ppt2pdf.py` — 独立工具，Windows COM 调用 PowerPoint 批量转换
+- `scripts/deploy_production.py` — 生产环境部署脚本
+
+### 多端点支持
+- DashScope（qwen-long）：使用 `fileid://` 文件上传机制
+- OpenAI 兼容端点（opencode.ai kimi-k2.6 等）：使用 `chat_direct` 直接文本注入
+- 切换方式：`--model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1`
+- 非 DashScope 端点默认 `max_tokens=8192`（推理模型需更多 token 空间）
+- 通过 `HTTPS_PROXY` 环境变量支持代理连接
 
 ## Key Conventions
 
 - skip_existing 默认开启（断点续传），检查 output 目录是否已有对应文件
-- 提示词版本 v3.0 是应试化版本（题型标注、答题要点、对比表格），v2.0 是重要性分级版本
+- 提示词版本 v3.0 是应试化版本（题型标注、答题要点、对比表格），已拆分为 system prompt + user prompt
 - API 密钥通过环境变量 `DASHSCOPE_API_KEY` 或 `.env` 文件设置，优先级: env > .env > config.yaml
 - `qwen_client.py` 所有函数接受 `api_key` 参数，不持有模块级密钥常量
 - 密钥注入链路: `ConfigManager.api_key → Pipeline → PDFParser / NoteGenerator` 以及 `ConfigManager.api_key → run_kg_commands → QASystem`
 - `extract_lecture_number()` 返回 `float`，支持 "第3-4讲" → 3.4，未知讲次返回 999.0
 - `integrator.py` 中 `extract_lecture_number = staticmethod(PDFParser.extract_lecture_number)` 引用统一实现
 - 当前 API 限制 max_workers=1，不支持并行处理
+- `PromptManager.get_prompt()` 返回 `(system_prompt, user_prompt)` 元组，不是单字符串
+- 已移除 v2.0 提示词；未知版本会警告并回退到 v3.0
+- 模型参数 (temperature/max_tokens/top_p) 从 config.yaml → ConfigManager → Pipeline → NoteGenerator → qwen_client 链路传递
+- 遗留：`use_custom` 自定义提示路径功能未实现，当前仅支持内置 v3.0
 - 使用 `pyproject.toml` 管理依赖，`pip install -e .` 后可移除 `sys.path.insert()` 依赖
 - `config_manager.py` 使用 `copy.deepcopy()` 防止 DEFAULT_CONFIG 被意外修改

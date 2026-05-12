@@ -45,17 +45,14 @@ export DASHSCOPE_API_KEY="your_api_key_here"
 # 完整流程（推荐）
 D:\anaconda3\python.exe cli.py --input 课件/ --output output/
 
-# 使用v2.0提示词
-python cli.py --input 课件/ --prompt-version v2.0
-
 # 仅PDF解析
-python cli.py --input 课件/ --stage parse
+D:\anaconda3\python.exe cli.py --input 课件/ --stage parse
 
 # 仅笔记生成
-python cli.py --input 课件/ --stage generate
+D:\anaconda3\python.exe cli.py --input 课件/ --stage generate
 
 # 仅笔记整合
-python cli.py --input 课件/ --stage integrate --output output/
+D:\anaconda3\python.exe cli.py --input 课件/ --stage integrate --output output/
 ```
 
 ### 知识图谱使用
@@ -77,7 +74,7 @@ D:\anaconda3\python.exe cli.py --generate-mindmap --subject Fall-Network --mindm
 D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 ```
 
-**详细文档**: 查看 [KNOWLEDGE_GRAPH.md](./KNOWLEDGE_GRAPH.md)
+**详细文档**: 查看 [docs/knowledge-graph.md](./docs/knowledge-graph.md)
 
 ## 📖 使用指南
 
@@ -106,30 +103,39 @@ D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 
 ### 提示词版本
 
-- **v2.0**: 重要性分级版本，包含⭐标记
-- **v3.0**: 应试化版本（推荐），包含题型标注、答题要点、对比表格
+- **v3.0**（默认）：应试化版本，包含题型标注、答题要点、对比表格
 
 ## 📁 项目结构
 
 ```
-Fall-Network/
+AI-summary-project/
 ├── core/                    # 核心功能模块
 │   ├── pdf_parser.py       # PDF解析器
 │   ├── note_generator.py   # 笔记生成器
 │   ├── post_processor.py   # 后处理器（格式修复+质量检测）
 │   ├── integrator.py       # 笔记整合器
-│   └── pipeline.py         # Pipeline编排器
-├── utils/                   # 工具模块
-│   ├── file_utils.py       # 文件操作工具
-│   ├── config_loader.py    # 配置加载器
-│   ├── statistics.py       # 统计面板
-│   └── logger.py           # 日志系统
+│   ├── pipeline.py         # Pipeline编排器
+│   ├── paddleocr_adapter.py # PaddleOCR适配器
+│   └── chapter_splitter.py  # 章节切分器
 ├── config/                  # 配置模块
 │   ├── prompts.py          # 提示词管理
 │   └── config_manager.py   # 配置管理器
+├── utils/                   # 工具模块
+│   ├── logger.py           # 日志系统
+│   └── statistics.py       # 统计面板
+├── extensions/              # 扩展模块
+│   ├── knowledge_graph/    # LightRAG 知识图谱
+│   └── mindmap/            # 思维导图生成
+├── scripts/                 # 独立工具脚本
+│   ├── ppt2pdf.py          # PPT→PDF 转换器（Windows）
+│   └── deploy_production.py # 生产部署脚本
+├── tests/                   # 测试模块
+├── docs/                    # 文档
+│   ├── knowledge-graph.md  # 知识图谱使用指南
+│   └── single-file-pipeline-plan.md
 ├── cli.py                   # 命令行入口
 ├── config.yaml              # 配置文件
-├── qwen_client.py           # Qwen API客户端
+├── qwen_client.py           # API客户端
 └── README.md                # 本文档
 ```
 
@@ -144,8 +150,7 @@ model:
   base_url: ""
 
 prompt:
-  version: v3.0         # v2.0 / v3.0
-  use_custom: false
+  version: v3.0         # 提示词版本
 
 pipeline:
   skip_existing: true   # 断点续传
@@ -233,13 +238,23 @@ output/
 
 编辑`core/post_processor.py`的`quality_check`方法
 
-## 🎯 未来规划
+## 📊 处理时间估算
 
-- [ ] 并行处理支持（多PDF同时处理）
-- [ ] 知识图谱构建（LightRAG集成）
-- [ ] 思维导图生成
-- [ ] RAG问答系统
-- [ ] Web界面
+| PDF数量 | 预估时间 |
+|---------|---------|
+| 1-5个   | 2-5分钟 |
+| 10个    | 5-10分钟 |
+| 19个    | 10-15分钟 |
+
+*实际时间取决于PDF大小和网络状况*
+
+## 💡 最佳实践
+
+1. **首次使用**：先用少量PDF测试（3-5个）
+2. **断点续传**：保持默认开启，避免重复工作
+3. **配置备份**：备份你的 `config.yaml`
+4. **日志查看**：遇到问题先查看 `logs/` 目录
+5. **质量验证**：生成后检查自动生成的质量报告
 
 ## 📄 许可证
 
@@ -256,5 +271,5 @@ MIT License
 
 ---
 
-**版本**: v1.0.0  
-**最后更新**: 2025-11-17
+**版本**: v1.1.0  
+**最后更新**: 2026-05-12

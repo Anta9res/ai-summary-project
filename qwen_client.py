@@ -180,49 +180,58 @@ def extract_content_from_pdf(pdf_path: str, save_path: Optional[str] = None,
 # 其余对话/流程函数保持不变
 
 def chat_with_file(file_id: str, question: str, api_key: str,
-                   base_url: str = _DEFAULT_BASE_URL) -> Optional[str]:
+                   base_url: str = _DEFAULT_BASE_URL,
+                   model: str = "qwen-long",
+                   system_prompt: str = "",
+                   temperature: float = 0.7,
+                   max_tokens: int = 4096,
+                   top_p: float = 1.0) -> Optional[str]:
     try:
         client = OpenAI(
             api_key=api_key,
             base_url=base_url,
         )
-        
-        print("正在向 Qwen 发送问题...")
-        print(f"文件ID: {file_id}")
-        print(f"问题: {question}")
-        
-        # 使用qwen-long模型进行文档理解
+
+        print(f"正在调用模型 {model} ...")
+
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt + (f"\nfileid://{file_id}" if system_prompt else f"fileid://{file_id}")
+            },
+            {
+                "role": "user",
+                "content": question
+            }
+        ]
+
         completion = client.chat.completions.create(
-            model="qwen-long",  # 使用qwen-long模型进行文档理解
-            messages=[
-                {
-                    "role": "system", 
-                    "content": f"fileid://{file_id}"
-                },
-                {
-                    "role": "user", 
-                    "content": question
-                }
-            ]
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
         )
-        
-        print(f"API 响应成功")
-        
-        # 提取答内容
+
+        print("API 响应成功")
+
         if completion.choices and len(completion.choices) > 0:
             answer = completion.choices[0].message.content
             return answer
         else:
             logger.error("响应格式异常：没有找到choices")
             return None
-            
+
     except Exception as e:
         print(f"对话请求异常: {str(e)}")
         return None
 
 
 def process_pdf_file(file_path: str, question: str, save_path: Optional[str] = None,
-                     api_key: str = "", base_url: str = _DEFAULT_BASE_URL) -> Tuple[bool, str, Optional[str]]:
+                     api_key: str = "", base_url: str = _DEFAULT_BASE_URL,
+                     model: str = "qwen-long", system_prompt: str = "",
+                     temperature: float = 0.7, max_tokens: int = 4096,
+                     top_p: float = 1.0) -> Tuple[bool, str, Optional[str]]:
     temp_file_path = None
     saved_file_path = None
     try:
@@ -235,12 +244,14 @@ def process_pdf_file(file_path: str, question: str, save_path: Optional[str] = N
         if not file_id:
             return False, "文件上传失败", saved_file_path
 
-        answer = chat_with_file(file_id, question, api_key=api_key, base_url=base_url)
+        answer = chat_with_file(file_id, question, api_key=api_key, base_url=base_url,
+                                model=model, system_prompt=system_prompt,
+                                temperature=temperature, max_tokens=max_tokens, top_p=top_p)
         if not answer:
             return False, "模型对话失败", saved_file_path
-        
+
         return True, answer, saved_file_path
-        
+
     finally:
         # 清理临时文件
         if temp_file_path and os.path.exists(temp_file_path):
@@ -251,7 +262,10 @@ def process_pdf_file(file_path: str, question: str, save_path: Optional[str] = N
 
 
 def process_text_file(file_path: str, question: str, api_key: str,
-                      base_url: str = _DEFAULT_BASE_URL) -> Tuple[bool, str, None]:
+                      base_url: str = _DEFAULT_BASE_URL,
+                      model: str = "qwen-long", system_prompt: str = "",
+                      temperature: float = 0.7, max_tokens: int = 4096,
+                      top_p: float = 1.0) -> Tuple[bool, str, None]:
     try:
         if not os.path.exists(file_path):
             return False, f"文件不存在: {file_path}", None
@@ -260,12 +274,14 @@ def process_text_file(file_path: str, question: str, api_key: str,
         if not file_id:
             return False, "文件上传失败", None
 
-        answer = chat_with_file(file_id, question, api_key=api_key, base_url=base_url)
+        answer = chat_with_file(file_id, question, api_key=api_key, base_url=base_url,
+                                model=model, system_prompt=system_prompt,
+                                temperature=temperature, max_tokens=max_tokens, top_p=top_p)
         if not answer:
             return False, "模型对话失败", None
-        
+
         return True, answer, None
-        
+
     except Exception as e:
         return False, f"处理文本文件失败: {str(e)}", None
 
@@ -409,3 +425,78 @@ def chat_with_tools(
     warning_msg = f"达到最大迭代次数 ({max_iterations})，停止工具调用"
     print(f"[警告] {warning_msg}")
     return warning_msg, messages, tool_calls_log
+
+
+# ── 直接文本对话（非 DashScope 端点） ──
+
+def chat_direct(text_content: str, system_prompt: str, user_prompt: str,
+                api_key: str, base_url: str, model: str,
+                temperature: float = 0.7, max_tokens: int = 8192,
+                top_p: float = 1.0) -> Optional[str]:
+    """将文本内容内联发送给 LLM（不使用文件上传机制）"""
+    http_client = None
+    try:
+        proxy_url = os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY') or os.environ.get('https_proxy') or os.environ.get('http_proxy')
+        if proxy_url:
+            import httpx
+            http_client = httpx.Client(proxy=proxy_url)
+
+        client = OpenAI(api_key=api_key, base_url=base_url, http_client=http_client)
+
+        full_user = f"{user_prompt}\n\n---\n## 课件内容\n\n{text_content}"
+
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": full_user},
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+        )
+
+        if completion.choices and len(completion.choices) > 0:
+            return completion.choices[0].message.content
+        else:
+            print("错误：响应格式异常，没有找到 choices")
+            return None
+
+    except Exception as e:
+        print(f"直接对话异常: {str(e)}")
+        return None
+    finally:
+        if http_client:
+            http_client.close()
+
+
+def process_text_direct(text_path: str, system_prompt: str, user_prompt: str,
+                        api_key: str, base_url: str, model: str,
+                        temperature: float = 0.7, max_tokens: int = 8192,
+                        top_p: float = 1.0) -> Tuple[bool, str, None]:
+    """读取文本文件内容并直接发送给 LLM"""
+    try:
+        if not os.path.exists(text_path):
+            return False, f"文件不存在: {text_path}", None
+
+        with open(text_path, 'r', encoding='utf-8') as f:
+            text_content = f.read()
+
+        if not text_content.strip():
+            return False, "文件内容为空", None
+
+        print(f"读取文本: {os.path.basename(text_path)} ({len(text_content)} 字符)")
+
+        answer = chat_direct(
+            text_content, system_prompt, user_prompt,
+            api_key=api_key, base_url=base_url, model=model,
+            temperature=temperature, max_tokens=max_tokens, top_p=top_p,
+        )
+
+        if not answer:
+            return False, "模型对话失败", None
+
+        return True, answer, None
+
+    except Exception as e:
+        return False, f"处理文本文件失败: {str(e)}", None

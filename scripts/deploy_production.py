@@ -8,7 +8,7 @@ import shutil
 from datetime import datetime
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 依赖检查 - 提供友好的错误提示
 def check_dependencies():
@@ -104,7 +104,7 @@ def run_production_pipeline(
     force_regenerate: bool = False
 ):
     """运行生产Pipeline"""
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     input_path = os.path.join(project_root, input_dir)
     output_path = os.path.join(project_root, output_dir)
     
@@ -235,13 +235,11 @@ def main():
   # 清空输出并重新生成
   python deploy_production.py --clean --force-regenerate
   
-  # 使用v2.0提示词
-  python deploy_production.py --version v2.0
         """
     )
     parser.add_argument("--input", default="课件", help="输入目录")
     parser.add_argument("--output", default="output", help="输出目录")
-    parser.add_argument("--version", default="v3.0", choices=['v2.0', 'v3.0'], help="提示词版本")
+    parser.add_argument("--version", default="v3.0", choices=['v3.0'], help="提示词版本")
     parser.add_argument("--no-backup", action="store_true", help="不备份旧数据")
     parser.add_argument("--clean", action="store_true", help="清空输出目录（高风险操作）")
     parser.add_argument("--force-regenerate", action="store_true", 

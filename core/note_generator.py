@@ -14,10 +14,21 @@ from config.prompts import PromptManager
 class NoteGenerator:
     """笔记生成器类"""
 
-    def __init__(self, qwen_client_module, post_processor=None, api_key: str = ""):
+    def __init__(self, qwen_client_module, post_processor=None, api_key: str = "",
+                 model_config: dict = None):
         self.qwen_client = qwen_client_module
         self.post_processor = post_processor
         self.api_key = api_key
+        mc = model_config or {}
+        self.model_name = mc.get('name', 'qwen-long')
+        self.base_url = mc.get('base_url', '')
+        self._use_dashscope = not self.base_url or 'dashscope' in self.base_url
+        self.temperature = mc.get('temperature', 0.7)
+        self.max_tokens = mc.get('max_tokens', 4096)
+        # 推理模型（如 kimi-k2.6）需要更大的 max_tokens，否则推理 token 会挤占输出空间
+        if not self._use_dashscope:
+            self.max_tokens = mc.get('max_tokens', 8192)
+        self.top_p = mc.get('top_p', 1.0)
         self.stats = {
             'total': 0,
             'success': 0,
@@ -25,16 +36,16 @@ class NoteGenerator:
             'skipped': 0,
             'failed_files': []
         }
-    
-    def get_prompt(self, version: str = "v3.0") -> str:
+
+    def get_prompt(self, version: str = "v3.0") -> tuple:
         """
         获取笔记生成提示词
-        
+
         Args:
-            version: 提示词版本(v2.0/v3.0)
-            
+            version: 提示词版本
+
         Returns:
-            提示词文本
+            (system_prompt, user_prompt) 元组
         """
         return PromptManager.get_prompt(version)
     
@@ -85,22 +96,36 @@ class NoteGenerator:
             print(f"{'='*60}")
         
         # 获取提示词
-        prompt = self.get_prompt(version=prompt_version)
-        
-        # 调用qwen_client处理
+        system_prompt, user_prompt = self.get_prompt(version=prompt_version)
+
+        # 调用 LLM 处理
         try:
-            if raw_text_path and os.path.exists(raw_text_path):
-                success, notes_content, _ = self.qwen_client.process_text_file(
-                    raw_text_path,
-                    prompt,
-                    api_key=self.api_key
-                )
+            kwargs = dict(
+                api_key=self.api_key,
+                model=self.model_name,
+                system_prompt=system_prompt,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                top_p=self.top_p,
+            )
+            if self.base_url:
+                kwargs['base_url'] = self.base_url
+
+            if self._use_dashscope:
+                if raw_text_path and os.path.exists(raw_text_path):
+                    success, notes_content, _ = self.qwen_client.process_text_file(
+                        raw_text_path, user_prompt, **kwargs
+                    )
+                else:
+                    success, notes_content, _ = self.qwen_client.process_pdf_file(
+                        pdf_path, user_prompt, save_path=None, **kwargs
+                    )
             else:
-                success, notes_content, _ = self.qwen_client.process_pdf_file(
-                    pdf_path,
-                    prompt,
-                    save_path=None,
-                    api_key=self.api_key
+                if not (raw_text_path and os.path.exists(raw_text_path)):
+                    return False, "非 DashScope 端点需要预提取的文本文件，请先运行 --stage parse"
+                print(f"使用直接文本模式 ({self.model_name})")
+                success, notes_content, _ = self.qwen_client.process_text_direct(
+                    raw_text_path, system_prompt, user_prompt, **kwargs
                 )
             
             if not success:

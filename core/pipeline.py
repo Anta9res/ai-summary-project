@@ -34,7 +34,9 @@ class Pipeline:
         api_key = self.config.get('model', {}).get('api_key', '')
         self.post_processor = PostProcessor()
         self.pdf_parser = PDFParser(qwen_client_module, api_key=api_key)
-        self.note_generator = NoteGenerator(qwen_client_module, self.post_processor, api_key=api_key)
+        model_config = self.config.get('model', {})
+        self.note_generator = NoteGenerator(qwen_client_module, self.post_processor,
+                                            api_key=api_key, model_config=model_config)
         self.integrator = NoteIntegrator(self.post_processor)
         
         # 统计面板
