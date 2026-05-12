@@ -194,14 +194,15 @@ def chat_with_file(file_id: str, question: str, api_key: str,
 
         print(f"正在调用模型 {model} ...")
 
+        # DashScope 要求 fileid:// 作为 system message 的唯一内容
         messages = [
             {
                 "role": "system",
-                "content": system_prompt + (f"\nfileid://{file_id}" if system_prompt else f"fileid://{file_id}")
+                "content": f"fileid://{file_id}"
             },
             {
                 "role": "user",
-                "content": question
+                "content": (system_prompt + "\n\n" + question) if system_prompt else question
             }
         ]
 
