@@ -460,11 +460,11 @@ if not args.single_file and not is_kg_command:
 
 ### 6. PaddleOCR 环境变量配置
 
-`core/paddleocr_adapter.py` 读取以下环境变量（已在 `settings.local.json` 中配置）：
+`core/paddleocr_adapter.py` 读取以下环境变量（需在 `~/.claude/settings.local.json` 的 `env` 节中配置）：
 
 ```
-PADDLEOCR_DOC_PARSING_API_URL=https://c9udwbj3u9ddmfjc.aistudio-app.com/layout-parsing
-PADDLEOCR_ACCESS_TOKEN=0c743d3497477205eba481a4166914a7e883ae94
+PADDLEOCR_DOC_PARSING_API_URL=<your-paddleocr-api-url>
+PADDLEOCR_ACCESS_TOKEN=<your-paddleocr-access-token>
 ```
 
 首次运行时需要安装 PaddleOCR skill 依赖：

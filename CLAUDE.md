@@ -22,6 +22,9 @@ PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --outp
 # 使用 opencode.ai / kimi-k2.6
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
 
+# 单文件模式：大PDF按章节拆分（需 PaddleOCR）
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --single-file --input <含单个PDF的目录> --output <输出目录>
+
 # 仅 PDF 解析
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --stage parse
 
@@ -102,6 +105,7 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
 - 提示词版本 v3.0 是应试化版本（题型标注、答题要点、对比表格），已拆分为 system prompt + user prompt
 - API 密钥通过环境变量 `DASHSCOPE_API_KEY` 或 `.env` 文件设置，优先级: env > .env > config.yaml
 - `qwen_client.py` 所有函数接受 `api_key` 参数，不持有模块级密钥常量
+- `chat_with_file` 中 `fileid://` 作为 system message 唯一内容，system_prompt 移入 user message（避免 DashScope 解析失败）
 - 密钥注入链路: `ConfigManager.api_key → Pipeline → PDFParser / NoteGenerator` 以及 `ConfigManager.api_key → run_kg_commands → QASystem`
 - `extract_lecture_number()` 返回 `float`，支持 "第3-4讲" → 3.4，未知讲次返回 999.0
 - `integrator.py` 中 `extract_lecture_number = staticmethod(PDFParser.extract_lecture_number)` 引用统一实现

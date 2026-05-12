@@ -9,6 +9,8 @@
 ### 笔记生成功能
 - ✅ **模块化架构**: 清晰的模块划分，易于维护和扩展
 - ✅ **应试导向**: v3.0提示词专为考试服务，包含题型标注和答题要点
+- ✅ **多端点支持**: DashScope（qwen-long）、opencode.ai（kimi-k2.6）等兼容端点
+- ✅ **单文件模式**: 大PDF自动按章拆分，逐章生成笔记（PaddleOCR驱动）
 - ✅ **断点续传**: 智能跳过已处理文件，支持中断后继续执行
 - ✅ **质量检测**: 6种自动质量检测规则，生成质量报告
 - ✅ **笔记整合**: 自动生成完整笔记、索引和README
@@ -42,17 +44,24 @@ export DASHSCOPE_API_KEY="your_api_key_here"
 ### 基础使用
 
 ```bash
-# 完整流程（推荐）
-D:\anaconda3\python.exe cli.py --input 课件/ --output output/
+# 完整流程（推荐，DashScope / qwen-long）
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --output output/
+
+# 使用其他端点
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --output output/ \
+  --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
+
+# 单文件模式：大PDF按章拆分生成
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --single-file --input 民法/ --output output/
 
 # 仅PDF解析
-D:\anaconda3\python.exe cli.py --input 课件/ --stage parse
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --stage parse
 
 # 仅笔记生成
-D:\anaconda3\python.exe cli.py --input 课件/ --stage generate
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --stage generate
 
 # 仅笔记整合
-D:\anaconda3\python.exe cli.py --input 课件/ --stage integrate --output output/
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --stage integrate --output output/
 ```
 
 ### 知识图谱使用
@@ -84,7 +93,11 @@ D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 |------|------|--------|
 | `--input`, `-i` | 输入目录（PDF文件） | 必需 |
 | `--output`, `-o` | 输出目录 | `output` |
-| `--stage` | 执行阶段 | `all` |
+| `--stage` | 执行阶段：`all`/`parse`/`generate`/`integrate` | `all` |
+| `--single-file` | 单文件模式：大PDF按章拆分 | `False` |
+| `--split-strategy` | 章节检测策略（当前仅 `paddleocr`） | `paddleocr` |
+| `--model` | 模型名称 | `qwen-long` |
+| `--endpoint` | API端点（OpenAI兼容） | DashScope |
 | `--prompt-version` | 提示词版本 | `v3.0` |
 | `--skip-existing` | 断点续传 | `True` |
 | `--no-skip` | 强制重新生成 | - |
@@ -96,10 +109,11 @@ D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 
 ### Pipeline阶段
 
-1. **PDF解析** (`parse`): 提取PDF文本内容
-2. **笔记生成** (`generate`): 使用AI生成结构化笔记
-3. **质量检测** (自动): 检测并修复格式问题
-4. **笔记整合** (`integrate`): 合并生成完整文档
+1. **PDF解析** (`parse`): 提取PDF文本内容（常规模式：unstructured + pdfminer）
+2. **PaddleOCR预处理** (单文件模式): PaddleOCR文档解析 + 按章切割（`--single-file`）
+3. **笔记生成** (`generate`): 使用AI生成结构化笔记（支持多端点）
+4. **质量检测** (自动): 检测并修复格式问题
+5. **笔记整合** (`integrate`): 合并生成完整文档
 
 ### 提示词版本
 
@@ -110,16 +124,16 @@ D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 ```
 AI-summary-project/
 ├── core/                    # 核心功能模块
-│   ├── pdf_parser.py       # PDF解析器
-│   ├── note_generator.py   # 笔记生成器
+│   ├── pdf_parser.py       # PDF解析器（unstructured + pdfminer）
+│   ├── note_generator.py   # 笔记生成器（多端点支持）
 │   ├── post_processor.py   # 后处理器（格式修复+质量检测）
 │   ├── integrator.py       # 笔记整合器
-│   ├── pipeline.py         # Pipeline编排器
-│   ├── paddleocr_adapter.py # PaddleOCR适配器
-│   └── chapter_splitter.py  # 章节切分器
+│   ├── pipeline.py         # Pipeline编排器（常规+单文件模式）
+│   ├── paddleocr_adapter.py # PaddleOCR适配器（单文件模式）
+│   └── chapter_splitter.py  # 章节切分器（prunedResult+正则）
 ├── config/                  # 配置模块
-│   ├── prompts.py          # 提示词管理
-│   └── config_manager.py   # 配置管理器
+│   ├── prompts.py          # 提示词管理（仅v3.0）
+│   └── config_manager.py   # 配置管理器（多端点密钥）
 ├── utils/                   # 工具模块
 │   ├── logger.py           # 日志系统
 │   └── statistics.py       # 统计面板
@@ -131,11 +145,12 @@ AI-summary-project/
 │   └── deploy_production.py # 生产部署脚本
 ├── tests/                   # 测试模块
 ├── docs/                    # 文档
+│   ├── CHANGELOG.md        # 变更日志
 │   ├── knowledge-graph.md  # 知识图谱使用指南
-│   └── single-file-pipeline-plan.md
+│   └── single-file-pipeline-plan.md  # 单文件模式设计文档
 ├── cli.py                   # 命令行入口
-├── config.yaml              # 配置文件
-├── qwen_client.py           # API客户端
+├── config.yaml.example      # 配置文件示例
+├── qwen_client.py           # API客户端（DashScope+兼容端点）
 └── README.md                # 本文档
 ```
 
@@ -171,8 +186,9 @@ output:
 ```
 output/
 ├── raw_texts/              # PDF提取的原始文本
-│   ├── 数据通信与网络-第1讲_提取文本.md
-│   └── ...
+│   ├── 第1讲_提取文本.md
+│   ├── 第2讲_提取文本.md
+│   └── ...（单文件模式：按章拆分的多个文件）
 ├── notes/                  # 生成的笔记
 │   ├── 第1讲_笔记.md
 │   ├── 第2讲_笔记.md
@@ -181,6 +197,8 @@ output/
 ├── 完整复习笔记.md          # 所有笔记合并
 └── 笔记索引.md              # 快速导航索引
 ```
+
+单文件模式额外输出：`<pdf名>_paddleocr_full.json`（PaddleOCR缓存，位于PDF所在目录）。
 
 ### 笔记特性（v3.0）
 
@@ -271,5 +289,5 @@ MIT License
 
 ---
 
-**版本**: v1.1.0  
+**版本**: v1.2.0  
 **最后更新**: 2026-05-12

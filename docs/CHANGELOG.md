@@ -1,5 +1,11 @@
 # Changelog
 
+### Bug 修复 — fileid:// 协议兼容 (2026-05-12)
+
+- `chat_with_file` 中 system_prompt 不再与 `fileid://` 拼接
+- system message 仅含 `fileid://`，system_prompt 移入 user message
+- 修复 DashScope 因 fileid:// 与 system_prompt 拼接导致无法解析文件的错误
+
 ## v1.1.0 — 项目重构与多端点支持 (2026-05-12)
 
 ### 阶段一：文件清理与目录重组
