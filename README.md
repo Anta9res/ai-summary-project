@@ -35,7 +35,9 @@ pip install -r requirements.txt
 
 方式1：环境变量
 ```bash
-export DASHSCOPE_API_KEY="your_api_key_here"
+# 设置对应端点的 API 密钥
+export OPENCODE_API_KEY="your_api_key_here"   # opencode.ai 等兼容端点
+export DASHSCOPE_API_KEY="your_api_key_here"   # DashScope (qwen-long)
 ```
 
 方式2：配置文件
@@ -44,12 +46,12 @@ export DASHSCOPE_API_KEY="your_api_key_here"
 ### 基础使用
 
 ```bash
-# 完整流程（推荐，DashScope / qwen-long）
+# 完整流程（使用默认模型）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --output output/
 
-# 使用其他端点
+# 切换为其他模型（任意 OpenAI 兼容端点）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input 课件/ --output output/ \
-  --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
+  --model <模型名> --endpoint <API端点URL>
 
 # 单文件模式：大PDF按章拆分生成（输入仅含1个PDF且>5MB时自动启用）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --single-file --input 民法/ --output output/
@@ -96,8 +98,8 @@ D:\anaconda3\python.exe cli.py --kb-info --subject Fall-Network
 | `--stage` | 执行阶段：`all`/`parse`/`generate`/`integrate` | `all` |
 | `--single-file` | 单文件模式：大PDF按章拆分（单PDF>5MB自动启用） | `False` |
 | `--split-strategy` | 章节检测策略（当前仅 `paddleocr`） | `paddleocr` |
-| `--model` | 模型名称 | `qwen-long` |
-| `--endpoint` | API端点（OpenAI兼容） | DashScope |
+| `--model` | 模型名称（支持任意 OpenAI 兼容模型） | `kimi-k2.6` |
+| `--endpoint` | API端点 URL（OpenAI 兼容） | `https://opencode.ai/zen/go/v1` |
 | `--prompt-version` | 提示词版本 | `v3.0` |
 | `--skip-existing` | 断点续传 | `True` |
 | `--no-skip` | 强制重新生成 | - |

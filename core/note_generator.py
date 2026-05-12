@@ -20,8 +20,8 @@ class NoteGenerator:
         self.post_processor = post_processor
         self.api_key = api_key
         mc = model_config or {}
-        self.model_name = mc.get('name', 'qwen-long')
-        self.base_url = mc.get('base_url', '')
+        self.model_name = mc.get('name', 'kimi-k2.6')
+        self.base_url = mc.get('base_url', 'https://opencode.ai/zen/go/v1')
         self._use_dashscope = not self.base_url or 'dashscope' in self.base_url
         self.temperature = mc.get('temperature', 0.7)
         self.max_tokens = mc.get('max_tokens', 4096)

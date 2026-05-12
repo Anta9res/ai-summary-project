@@ -16,11 +16,11 @@ D:\anaconda3\python.exe scripts/ppt2pdf.py "C:\Users\LENOVO\Desktop\Fall-Network
 
 ### 主 Pipeline
 ```bash
-# 完整流程（DashScope / qwen-long）
+# 完整流程（默认 kimi-k2.6 / opencode.ai）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --prompt-version v3.0
 
-# 使用 opencode.ai / kimi-k2.6
-PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
+# 使用 DashScope / qwen-long
+PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --input <PDF目录> --output <输出目录> --model qwen-long --endpoint ""
 
 # 单文件模式：大PDF按章节拆分（需 PaddleOCR；输入仅含 1 个 PDF 且 > 5MB 自动启用）
 PYTHONIOENCODING=utf-8 D:\anaconda3\python.exe cli.py --single-file --input <含单个PDF的目录> --output <输出目录>
@@ -93,9 +93,10 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
 - `scripts/deploy_production.py` — 生产环境部署脚本
 
 ### 多端点支持
-- DashScope（qwen-long）：使用 `fileid://` 文件上传机制
-- OpenAI 兼容端点（opencode.ai kimi-k2.6 等）：使用 `chat_direct` 直接文本注入
-- 切换方式：`--model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1`
+- 默认模型 `kimi-k2.6`（opencode.ai），使用 `chat_direct` 直接文本注入
+- DashScope（qwen-long）：使用 `fileid://` 文件上传机制 — `--model qwen-long --endpoint ""`
+- 其他 OpenAI 兼容端点：`--model <model> --endpoint <url>`
+- 智能回退：未检测到 `OPENCODE_API_KEY` 时自动回退到 DashScope (qwen-long)
 - 非 DashScope 端点默认 `max_tokens=8192`（推理模型需更多 token 空间）
 - 通过 `HTTPS_PROXY` 环境变量支持代理连接
 
@@ -103,7 +104,7 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
 
 - skip_existing 默认开启（断点续传），检查 output 目录是否已有对应文件
 - 提示词版本 v3.0 是应试化版本（题型标注、答题要点、对比表格），已拆分为 system prompt + user prompt
-- API 密钥通过环境变量 `DASHSCOPE_API_KEY` 或 `.env` 文件设置，优先级: env > .env > config.yaml
+- API 密钥：优先 `OPENCODE_API_KEY`（默认 kimi-k2.6），回退 `DASHSCOPE_API_KEY`（qwen-long），优先级: env > .env > config.yaml
 - `qwen_client.py` 所有函数接受 `api_key` 参数，不持有模块级密钥常量
 - `chat_with_file` 中 `fileid://` 作为 system message 唯一内容，system_prompt 移入 user message（避免 DashScope 解析失败）
 - 密钥注入链路: `ConfigManager.api_key → Pipeline → PDFParser / NoteGenerator` 以及 `ConfigManager.api_key → run_kg_commands → QASystem`

@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.3.0 — 默认模型切换 + LaTeX 渲染修复 (2026-05-13)
+
+### 默认模型 — kimi-k2.6
+
+- 默认模型从 `qwen-long` (DashScope) 切换为 `kimi-k2.6` (opencode.ai)
+- 密钥优先级调整：`OPENCODE_API_KEY` 优先于 `DASHSCOPE_API_KEY`
+- 智能回退：未检测到 `OPENCODE_API_KEY` 时自动回退 DashScope (qwen-long)
+- 默认 `max_tokens` 提升至 8192（推理模型）
+
+### Bug 修复 — LaTeX 公式渲染
+
+- prompt 添加 LaTeX 格式约束（`$$` 后不空行、不包裹代码块），移除 ````markdown` 模板包裹
+- post_processor 删除 Fix 4（破坏正确 LaTeX 格式），新增 `$$` 后空行移除/前空格清理
+- 新增 `check_latex_format` 检测规则（`$$` 后空行 error、前空格 warning）
+- `remove_code_block_wrapper` 支持无闭合标签场景（max_tokens 截断兜底）
+- 新增 9 个测试用例（共 22 个）
+
 ## v1.2.0 — 分批合并修复与自动分流 (2026-05-12)
 
 ### Bug 修复 — PaddleOCR 分批合并路径错误

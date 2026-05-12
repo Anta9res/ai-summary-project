@@ -1,15 +1,15 @@
 # Fall-Network Pipeline 配置文件示例
 # 复制此文件为 config.yaml 并填入你的配置
 
-# 模型配置
+# 模型配置（默认 kimi-k2.6 / opencode.ai）
 model:
-  provider: "dashscope"                              # 模型提供商
-  name: "qwen-long"                                 # 模型名称
-  api_key: "your_api_key_here"                      # ⚠️ 必需：你的API密钥
-  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-  temperature: 0.7                                   # 温度参数 (0.0-1.0)
-  max_tokens: 4096                                   # 最大输出 token 数
-  top_p: 1.0                                         # 核采样参数
+  provider: "openai"                                   # 模型提供商
+  name: "kimi-k2.6"                                   # 模型名称
+  api_key: ""                                         # ⚠️ 留空，从环境变量读取
+  base_url: "https://opencode.ai/zen/go/v1"           # API 端点 URL
+  temperature: 0.7                                    # 温度参数 (0.0-1.0)
+  max_tokens: 8192                                    # 最大输出 token 数（推理模型）
+  top_p: 1.0                                          # 核采样参数
 
 # 提示词配置
 prompt:
@@ -35,20 +35,26 @@ logging:
 
 # 环境变量优先级说明：
 # API密钥可通过以下方式配置（优先级从高到低）：
-# 1. 环境变量 DASHSCOPE_API_KEY / OPENCODE_API_KEY / API_KEY
+# 1. 环境变量 OPENCODE_API_KEY / DASHSCOPE_API_KEY / API_KEY
 # 2. config.yaml 中的 model.api_key
 # 3. 命令行参数 --model / --endpoint
 
-# ── 使用 opencode.ai (kimi-k2.6) 的配置示例 ──
+# ── 使用 DashScope (qwen-long) 的配置示例 ──
 # 将上面 model 段替换为：
 # model:
-#   provider: "openai"
-#   name: "kimi-k2.6"
+#   provider: "dashscope"
+#   name: "qwen-long"
 #   api_key: ""
-#   base_url: "https://opencode.ai/zen/go/v1"
+#   base_url: ""
 #   temperature: 0.7
-#   max_tokens: 8192
+#   max_tokens: 4096
 #   top_p: 1.0
-# 然后在 .env 中设置 OPENCODE_API_KEY=your_key
-# 或直接运行：
-#   PYTHONIOENCODING=utf-8 python cli.py --input 课件/ --model kimi-k2.6 --endpoint https://opencode.ai/zen/go/v1
+# 然后在 .env 中设置 DASHSCOPE_API_KEY=your_key
+# 默认未检测到 OPENCODE_API_KEY 时自动回退到此配置
+
+# ── 使用其他 OpenAI 兼容端点 ──
+# model:
+#   provider: "openai"
+#   name: "<模型名>"
+#   api_key: ""
+#   base_url: "<API端点URL>"

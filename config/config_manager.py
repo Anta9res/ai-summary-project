@@ -16,11 +16,11 @@ class ConfigManager:
     
     DEFAULT_CONFIG = {
         'model': {
-            'name': 'qwen-long',
+            'name': 'kimi-k2.6',
             'api_key': '',  # 从环境变量或配置文件读取
-            'base_url': '',
+            'base_url': 'https://opencode.ai/zen/go/v1',
             'temperature': 0.7,
-            'max_tokens': 4096,
+            'max_tokens': 8192,  # kimi-k2.6 推理模型需更大 token 空间
             'top_p': 1.0,
         },
         'prompt': {
@@ -62,13 +62,21 @@ class ConfigManager:
                 print(f"⚠️  加载配置文件失败: {e}，使用默认配置")
         else:
             print("ℹ️  未找到 config.yaml，请复制 config.yaml.example 并编辑")
-            print("   或设置环境变量 DASHSCOPE_API_KEY")
+            print("   或设置环境变量 OPENCODE_API_KEY（默认 kimi-k2.6）或 DASHSCOPE_API_KEY（回退 qwen-long）")
 
         # 环境变量优先于配置文件 (env > .env > config.yaml)
-        if 'DASHSCOPE_API_KEY' in os.environ:
-            config['model']['api_key'] = os.environ['DASHSCOPE_API_KEY']
-        elif 'OPENCODE_API_KEY' in os.environ:
+        # 优先匹配 opencode 端点 (kimi-k2.6 等) 的密钥
+        base_url = config['model'].get('base_url', '')
+        if 'OPENCODE_API_KEY' in os.environ:
             config['model']['api_key'] = os.environ['OPENCODE_API_KEY']
+        elif 'DASHSCOPE_API_KEY' in os.environ:
+            config['model']['api_key'] = os.environ['DASHSCOPE_API_KEY']
+            # 智能回退: 配置为 opencode 但无 OPENCODE_API_KEY → 回退 DashScope
+            if base_url and 'opencode' in base_url:
+                print("ℹ️  未检测到 OPENCODE_API_KEY，回退到 DashScope (qwen-long)")
+                config['model']['name'] = 'qwen-long'
+                config['model']['base_url'] = ''
+                config['model']['max_tokens'] = 4096
         elif 'API_KEY' in os.environ:
             config['model']['api_key'] = os.environ['API_KEY']
 
@@ -174,7 +182,7 @@ class ConfigManager:
         
         # 检查必需配置
         if not self.get('model.api_key'):
-            errors.append("缺少API密钥(model.api_key或环境变量DASHSCOPE_API_KEY)")
+            errors.append("缺少API密钥(model.api_key或环境变量 OPENCODE_API_KEY / DASHSCOPE_API_KEY)")
         
         if not self.get('model.name'):
             errors.append("缺少模型名称(model.name)")
