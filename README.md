@@ -1,8 +1,8 @@
-# Fall-Network 课程笔记生成Pipeline
+# AI 课程笔记生成 Pipeline
 
-## 📚 项目简介
+## 项目简介
 
-基于通义千问qwen-long模型的智能课程笔记生成系统，支持从PDF课件自动生成结构化、应试导向的复习笔记。
+基于 LLM 的智能课程笔记生成系统，支持多端点（opencode.ai、DashScope 等）、多模型（kimi-k2.6、qwen-long 等），从 PDF 课件自动生成结构化、应试导向的复习笔记。
 
 ## ✨ 核心特性
 
