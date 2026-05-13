@@ -124,6 +124,7 @@ class NoteGenerator:
                 if not (raw_text_path and os.path.exists(raw_text_path)):
                     return False, "非 DashScope 端点需要预提取的文本文件，请先运行 --stage parse"
                 print(f"使用直接文本模式 ({self.model_name})")
+                kwargs.pop('system_prompt', None)
                 success, notes_content, _ = self.qwen_client.process_text_direct(
                     raw_text_path, system_prompt, user_prompt, **kwargs
                 )

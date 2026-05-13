@@ -323,6 +323,44 @@ class PostProcessor:
             content
         )
 
+        # 修复4: 含 \begin{...} 的内联 $$...$$ → 标准显示公式 $$\n...\n$$
+        # 部分渲染器对 $$CONTENT$$ 单行格式（尤其含矩阵/对齐环境）解析失败
+        # 仅匹配单行（无 DOTALL），避免跨 $$ 边界误匹配
+        def _expand_to_display(m: re.Match) -> str:
+            inner = m.group(1)
+            inner = inner.strip()
+            return f'$$\n{inner}\n$$'
+
+        content = re.sub(
+            r'\$\$\s*(.+?\\begin\{[^}]+\}.+?\\end\{[^}]+\})\s*\$\$',
+            _expand_to_display,
+            content
+        )
+
+        # 修复5: \begin{...}^ 和 \\^ → 在 ^/_ 前插入 {}
+        # 根因：^ 紧贴 \begin 或 \\ 时，KaTeX 将上标附着到命令本身，
+        # 产生 "Got group of unknown type: 'internal'" 错误
+        def _fix_katex_script_attachment(m: re.Match) -> str:
+            inner = m.group(1)
+            # \begin{xxx}^ → \begin{xxx}{}^, \begin{xxx}_ → \begin{xxx}{}_
+            inner = re.sub(r'(\\begin\{[^}]+\})([\^_])', r'\1{}\2', inner)
+            # \\^ → \\{}^, \\_ → \\{}_
+            inner = inner.replace(r'\\^', r'\\{}^')
+            inner = inner.replace(r'\\_', r'\\{}_')
+            # \;^, \,^, \:^, \!^ → 插入 {}（间距命令无法承载上标/下标）
+            inner = re.sub(r'(\\[;,:\!])([\^_])', r'\1{}\2', inner)
+            return f'$$\n{inner}\n$$'
+
+        content = re.sub(
+            r'\$\$\n(.+?)\n\$\$',
+            _fix_katex_script_attachment,
+            content
+        )
+
+        # 修复6: 内联公式中间距命令后 ^/_ 插入 {}
+        # \;^T, \,^T 等在 inline $...$ 中同样导致 KaTeX 内部错误
+        content = re.sub(r'(\\[;,:\!])([\^_])', r'\1{}\2', content)
+
         return content
     
     def check_latex_format(self, content: str, file_path: str) -> List[Dict]:
