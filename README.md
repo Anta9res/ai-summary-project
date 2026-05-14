@@ -132,7 +132,7 @@ AI-summary-project/
 │   ├── integrator.py       # 笔记整合器
 │   ├── pipeline.py         # Pipeline编排器（常规+单文件模式）
 │   ├── paddleocr_adapter.py # PaddleOCR适配器（单文件模式）
-│   └── chapter_splitter.py  # 章节切分器（prunedResult+正则）
+│   └── chapter_splitter.py  # 章节切分器（三路互补：prunedResult + 正则 + 节复位推断）
 ├── config/                  # 配置模块
 │   ├── prompts.py          # 提示词管理（仅v3.0）
 │   └── config_manager.py   # 配置管理器（多端点密钥）

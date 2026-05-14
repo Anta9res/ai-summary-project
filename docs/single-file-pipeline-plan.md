@@ -25,7 +25,7 @@
 | 1 | OCR 引擎 | PaddleOCR PP-StructureV3 完全替代 ocrmypdf | 已定 |
 | 2 | 拆分粒度 | 按"章"级别拆分 | 已定 |
 | 3 | 架构 | 合并阶段：PaddleOCR 提取 + 按章切割 = 一步完成 | 已定 |
-| 4 | 章检测策略 | prunedResult block_label → 正则 markdown 标题 fallback → LLM 兜底 | 已定 |
+| 4 | 章检测策略 | 三路互补：prunedResult block_label + markdown 正则 + 节复位推断 | 已定 |
 | 5 | 章标题定位方式 | prunedResult 筛选章标题 → 在合并后 markdown 全文中定位 → 切割 | 已定 |
 | 6 | 100 页 API 限制 | 分批调用（每批 ≤100页）+ `{pdf_name}_paddleocr_full.md` 缓存 | 已定 |
 | 7 | generate 阶段适配 | `_run_generate_stage` 增加 `text_list_override` 参数，从拆分文本文件驱动 | 已定 |
@@ -129,12 +129,15 @@ class ChapterSplitter:
     输入：PaddleOCR 输出的合并 markdown + ParseResult
     输出：N 个按章拆分的文本文件
     
-    检测策略（互补合并，非互斥）：
+    检测策略（三路互补，非互斥）：
       1. prunedResult block_label == "paragraph_title" + 内容匹配 第X章
          - 空白归一化（\n → 空格），确保与 markdown 可匹配
       2. markdown 正则匹配：
          - MARKDOWN_HEADING_PATTERN: /^#{1,3}\s+第[一二三四五六七八九十百\d]+[章节]/
          - BARE_CHAPTER_PATTERN: /^第[一二三四五六七八九十百\d]+章\b/（无 ## 前缀的裸章标题）
+      3. 节复位推断：当节编号从 N 重置为 1 且附近无已知章时，推断新章边界
+         - PROXIMITY_THRESHOLD = 300 字符（近邻排除）
+         - 推断标题从第一节标题推导（例："第一节 民事法律关系概述" → "第X章 民事法律关系"）
       3. _merge_chapter_lists(): prunedResult 优先，regex 补漏；pruned 条目无法定位时回退到 regex 条目
       4. LLM 识别章节标题（兜底，当前标记为遗留问题）
     """
@@ -477,7 +480,7 @@ pip install -r ~/.claude/skills/paddleocr-doc-parsing/scripts/requirements.txt
 | 文件 | 操作 | 说明 |
 |------|------|------|
 | `core/paddleocr_adapter.py` | **新增** | PaddleOCR API 封装：分批调用、缓存管理、结果合并 |
-| `core/chapter_splitter.py` | **新增** | 章节检测（prunedResult + 正则）与 markdown 文本切割 |
+| `core/chapter_splitter.py` | **新增** | 章节检测（三路互补：prunedResult + 正则 + 节复位推断）与 markdown 文本切割 |
 | `core/ocr_processor.py` | **删除** | PaddleOCR 替代 ocrmypdf |
 | `scripts/ocr_and_split.py` | **删除** | 功能已整合 |
 | `core/pipeline.py` | 修改 | 新增 `_run_paddleocr_stage` + `run_single_file_pipeline`；`_run_generate_stage` 增加 `text_list_override` |
@@ -534,7 +537,12 @@ PaddleOCR prunedResult (block_label == "paragraph_title" + 第X章匹配)
     │  - regex 补漏（prunedResult 遗漏的章节）
     │  - 当 pruned 条目在 markdown 中无法定位时，回退到 regex 同名条目
     │
-    ├── 合并后 ≥1 个章 → 按章拆分 ✓
+    ├── 合并后 ≥1 个章 → _dedup_and_sort → 节复位推断（策略3）
+    │       │
+    │       ├── MARKDOWN_SECTION_PATTERN 提取节标题
+    │       ├── 检测节编号复位（N→1，300字符外无已知章）
+    │       ├── 推断章标题从第一节标题推导
+    │       └── 12/12 章完整覆盖 ✓
     │
     └── 合并后 0 个章
             │
@@ -544,8 +552,6 @@ PaddleOCR prunedResult (block_label == "paragraph_title" + 第X章匹配)
                     提示: "未检测到章节结构，可尝试 --split-strategy llm"
                     LLM 策略当前未实现（遗留问题）
 ```
-
-**已知局限**：课件 PDF 中部分章节无显式"第X章"标题（如民法课件第3、4、8、9、10、11章直接以"节"开始），两类检测源均无法捕获。需"节复位推断"（连续章节间 `第一节` 编号重置→推断新章边界）才能覆盖，当前未实现。
 
 ## 缓存机制
 
@@ -592,7 +598,7 @@ PaddleOCR prunedResult (block_label == "paragraph_title" + 第X章匹配)
 | 项目 | 类型 | 说明 |
 |------|------|------|
 | PaddleOCR API 费用 | 风险 | 按页计费，大 PDF 成本需关注 |
-| 章节检测优化 | 已实现 | prunedResult + markdown 互补合并，新增 BARE_CHAPTER_PATTERN。但无显式章标题的章节仍需"节复位推断" |
+| 章节检测优化 | 已实现 | 三路互补（prunedResult + 正则 + 节复位推断），覆盖无显式"第X章"标题的章节 |
 | LLM 兜底策略 | 遗留 | `--split-strategy llm` 未实现，零检测时提示用户但不可用 |
 | 非中文教材 | 风险 | 正则 fallback 支持 Chapter/Unit/Module，但 prunedResult 可能不适用 |
 | PaddleOCR 依赖安装 | 前置 | 需先 `pip install -r ~/.claude/skills/paddleocr-doc-parsing/scripts/requirements.txt` |
