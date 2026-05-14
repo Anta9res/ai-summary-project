@@ -68,7 +68,7 @@ cli.py                     # 唯一入口：参数解析 → ConfigManager → P
         │     └── core/post_processor.py  # 格式修复 + 6 种质量检测规则 + 跨运行重置
         ├── core/integrator.py        # 合并笔记 → 完整复习笔记 + 索引 + README
         ├── core/paddleocr_adapter.py  # PaddleOCR 文档解析（单文件模式）
-        └── core/chapter_splitter.py   # 按章切割（prunedResult + markdown 互补检测 + 裸章标题识别）
+        └── core/chapter_splitter.py   # 按章切割（三路互补：prunedResult + markdown 正则 + 节复位推断）
 
 ### Pipeline 流程
 

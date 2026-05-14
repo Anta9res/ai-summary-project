@@ -3,10 +3,10 @@
 
 从 PaddleOCR 的 markdown 输出中按章切割。
 
-检测策略（按优先级）：
+检测策略（三路互补）：
   1. prunedResult block_label == "paragraph_title" + 内容匹配 第X章
-  2. markdown 正则匹配 /^## 第[一二三四五六七八九十百\\d]+章/
-  3. LLM 识别章节标题（兜底，遗留问题）
+  2. markdown 正则匹配 /^## 第[一二三四五六七八九十百\\d]+章/ 及裸章标题
+  3. 节复位推断：当节编号从 N 重置为 1 且附近无已知章时，推断新章边界
 
 零检测降级链：
   - ≥1 章 → 按章拆分
@@ -32,6 +32,21 @@ BARE_CHAPTER_PATTERN = re.compile(
     r'^第[一二三四五六七八九十百\d]+章\b',
     re.MULTILINE
 )
+# markdown 中带 ## 前缀的节标题行（用于节复位推断）
+MARKDOWN_SECTION_PATTERN = re.compile(
+    r'^#{1,3}\s+(第([一二三四五六七八九十百\d]+)节\b.*)',
+    re.MULTILINE
+)
+
+# 中文数字 ↔ 阿拉伯数字
+_CHINESE_NUM_MAP = {
+    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+    '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+}
+_CHINESE_NUMS = [
+    '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+    '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+]
 
 
 @dataclass
@@ -63,12 +78,36 @@ class ChapterSplitter:
     # 安全文件名禁止字符
     SAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|]')
 
+    @staticmethod
+    def _chinese_to_int(cn: str) -> int:
+        """中文数字→阿拉伯数字，如 '一'→1, '十一'→11"""
+        if cn.isdigit():
+            return int(cn)
+        if cn in _CHINESE_NUM_MAP:
+            return _CHINESE_NUM_MAP[cn]
+        if cn.startswith('十'):
+            return 10 + _CHINESE_NUM_MAP.get(cn[1], 0)
+        if cn.endswith('十'):
+            return _CHINESE_NUM_MAP.get(cn[0], 0) * 10
+        if '十' in cn:
+            parts = cn.split('十', 1)
+            return _CHINESE_NUM_MAP.get(parts[0], 0) * 10 + _CHINESE_NUM_MAP.get(parts[1], 0)
+        return 0
+
+    @staticmethod
+    def _int_to_chinese(n: int) -> str:
+        """阿拉伯数字→中文数字，如 3→'三'"""
+        if 1 <= n <= len(_CHINESE_NUMS):
+            return _CHINESE_NUMS[n - 1]
+        return str(n)
+
     def detect_chapters(self, markdown_text: str, parse_result: dict) -> List[Chapter]:
         """
         从 prunedResult + markdown 互补提取章/节标题。
 
         策略 1（主）：prunedResult paragraph_title blocks
         策略 2（互补）：markdown 正则（始终运行，补策略1的遗漏）
+        策略 3（推断）：节编号复位检测（补无显式章标题的缺失章）
         """
         titles = self._extract_titles_from_pruned(parse_result)
 
@@ -79,7 +118,18 @@ class ChapterSplitter:
         all_chapters = self._merge_chapter_lists(pruned_chapters, regex_chapters, markdown_text)
 
         if all_chapters:
-            return self._dedup_and_sort(all_chapters, markdown_text, level="chapter")
+            # 先解析已知章位置（推断依赖准确的位置做邻近检测）
+            all_chapters = self._dedup_and_sort(all_chapters, markdown_text, level="chapter")
+
+        # 策略 3：节复位推断（补漏无显式"第X章"标题的章节）
+        if all_chapters:
+            inferred = self._infer_chapters_from_section_reset(markdown_text, all_chapters)
+            if inferred:
+                all_chapters = all_chapters + inferred
+                all_chapters.sort(key=lambda c: c.position)
+
+        if all_chapters:
+            return all_chapters
 
         # 0 章 → 检查是否有节
         sections = [t for t in titles if SECTION_PATTERN.search(t.title)]
@@ -172,6 +222,79 @@ class ChapterSplitter:
 
         return list(merged.values())
 
+    def _infer_chapters_from_section_reset(
+        self,
+        markdown_text: str,
+        known_chapters: List[Chapter],
+    ) -> List[Chapter]:
+        """策略3：节编号复位推断缺失的章边界。
+
+        当连续章节间第一节编号从 N 重置为 1（N > 1）且该位置
+        附近无已知章标题时，推断此处为新章边界。
+        """
+        if not known_chapters:
+            return []
+
+        # 提取所有节标题（去重：同编号连续出现仅保留首次）
+        sections: list[tuple[int, int, str]] = []  # [(position, section_num, raw_title)]
+        prev_num = -1
+        for m in MARKDOWN_SECTION_PATTERN.finditer(markdown_text):
+            cn_num = m.group(2)
+            num = self._chinese_to_int(cn_num)
+            if num == 0:
+                continue
+            if num != prev_num:
+                sections.append((m.start(), num, m.group(1).strip()))
+                prev_num = num
+
+        # 检测节编号复位（N→1），排除已知章附近
+        PROXIMITY_THRESHOLD = 300
+        inferred: list[Chapter] = []
+        for i in range(1, len(sections)):
+            prev_num = sections[i - 1][1]
+            curr_num = sections[i][1]
+            curr_pos = sections[i][0]
+
+            if curr_num == 1 and prev_num > 1:
+                near_known = any(
+                    abs(curr_pos - c.position) < PROXIMITY_THRESHOLD
+                    for c in known_chapters
+                )
+                if not near_known:
+                    inferred.append(Chapter(
+                        title="",
+                        position=curr_pos,
+                        level="chapter",
+                    ))
+
+        if not inferred:
+            return []
+
+        # 合并已知章与推断章，按位置排序，推导章编号和标题
+        all_chapters = known_chapters + inferred
+        all_chapters.sort(key=lambda c: c.position)
+
+        # 重建 sections 索引用于推导标题
+        sections_by_pos = {pos: raw_title for pos, _, raw_title in sections}
+
+        result: list[Chapter] = []
+        for idx, ch in enumerate(all_chapters):
+            if ch in inferred:
+                ch_num = idx + 1
+                cn_num = self._int_to_chinese(ch_num)
+                # 从该位置对应的节标题推导章名称
+                # 例："第一节 民事法律关系概述" → "民事法律关系"
+                sec_title = sections_by_pos.get(ch.position, "")
+                clean = re.sub(r'^第[一二三四五六七八九十百\d]+节\s*', '', sec_title)
+                for suffix in ['概述', '概说', '概念']:
+                    if clean.endswith(suffix):
+                        clean = clean[:-len(suffix)]
+                        break
+                ch.title = f"第{cn_num}章 {clean}" if clean else f"第{cn_num}章"
+                result.append(ch)
+
+        return result
+
     @staticmethod
     def _chapter_number_key(title: str) -> str:
         """提取章编号作为去重 key，如 '第一章' → 'ch1'"""
@@ -196,7 +319,10 @@ class ChapterSplitter:
                 continue
             seen_titles.add(item.title)
 
-            item.position = pos if pos >= 0 else 999999
+            if pos >= 0:
+                item.position = pos
+            elif item.position <= 0:
+                item.position = 999999  # 无法定位且非预置位置 → 排除
             item.level = level
             unique.append(item)
 

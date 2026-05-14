@@ -179,6 +179,165 @@ class TestRun:
                     os.unlink(pdf_path)
 
 
+class TestChineseNumConversion:
+    def test_chinese_to_int_basic(self):
+        splitter = ChapterSplitter()
+        assert splitter._chinese_to_int('一') == 1
+        assert splitter._chinese_to_int('五') == 5
+        assert splitter._chinese_to_int('十') == 10
+
+    def test_chinese_to_int_multi(self):
+        splitter = ChapterSplitter()
+        assert splitter._chinese_to_int('十一') == 11
+        assert splitter._chinese_to_int('十二') == 12
+        assert splitter._chinese_to_int('二十') == 20
+        assert splitter._chinese_to_int('十五') == 15
+
+    def test_chinese_to_int_digit(self):
+        splitter = ChapterSplitter()
+        assert splitter._chinese_to_int('3') == 3
+        assert splitter._chinese_to_int('12') == 12
+
+    def test_int_to_chinese(self):
+        splitter = ChapterSplitter()
+        assert splitter._int_to_chinese(1) == '一'
+        assert splitter._int_to_chinese(7) == '七'
+        assert splitter._int_to_chinese(12) == '十二'
+
+    def test_chinese_to_int_invalid(self):
+        """无效输入应返回 0（哨兵值，下游跳过 num==0）"""
+        splitter = ChapterSplitter()
+        assert splitter._chinese_to_int('') == 0
+        assert splitter._chinese_to_int('abc') == 0
+        assert splitter._chinese_to_int('零') == 0
+
+    def test_int_to_chinese_boundary(self):
+        """超出 _CHINESE_NUMS 范围的数字降级为阿拉伯数字字符串"""
+        splitter = ChapterSplitter()
+        assert splitter._int_to_chinese(0) == '0'
+        assert splitter._int_to_chinese(20) == '二十'
+        assert splitter._int_to_chinese(21) == '21'
+
+
+class TestSectionResetInference:
+    def test_infer_chapters_basic(self):
+        """节编号从 N→1 复位时推断新章边界"""
+        markdown = (
+            "## 第一章 总则\n\n" + "x" * 200 + "\n\n"
+            "## 第一节 基本概念\n\n" + "y" * 200 + "\n\n"
+            "## 第二节 基本原则\n\n" + "z" * 200 + "\n\n"
+            "## 第一节 民事法律关系\n\n" + "w" * 200 + "\n\n"
+        )
+        raw = _make_pruned_result([
+            (0, [("paragraph_title", "第一章 总则")]),
+        ])
+        splitter = ChapterSplitter()
+        chapters = splitter.detect_chapters(markdown, raw)
+
+        assert len(chapters) == 2
+        assert chapters[0].title.startswith("第一章")
+        assert chapters[1].title.startswith("第二章")
+        assert chapters[1].position > chapters[0].position
+
+    def test_infer_chapters_near_known_excluded(self):
+        """已知章附近的节复位不产生推断章（距离 < 300 字符，应被排除）"""
+        ch2_pos = 100
+        markdown = (
+            "## 第一章 引言\n\n" + "x" * 200 + "\n\n"
+            + " " * ch2_pos + "第二章\n\n"
+            "## 第一节 基本原则\n\n" + "y" * 200 + "\n\n"
+        )
+        known = [Chapter(title="第二章", position=ch2_pos, level="chapter")]
+        splitter = ChapterSplitter()
+        inferred = splitter._infer_chapters_from_section_reset(markdown, known)
+        assert len(inferred) == 0
+
+    def test_infer_chapters_multi_reset(self):
+        """多次复位产生多个推断章"""
+        markdown = (
+            "## 第一章 引言\n\n" + "x" * 200 + "\n\n"
+            "## 第一节 A\n\n" + "a" * 100 + "\n\n"
+            "## 第二节 B\n\n" + "b" * 100 + "\n\n"
+            "## 第三节 C\n\n" + "c" * 100 + "\n\n"
+            "## 第一节 D\n\n" + "d" * 100 + "\n\n"
+            "## 第二节 E\n\n" + "e" * 100 + "\n\n"
+            "## 第一节 F\n\n" + "f" * 100 + "\n\n"
+        )
+        raw = _make_pruned_result([
+            (0, [("paragraph_title", "第一章 引言")]),
+        ])
+        splitter = ChapterSplitter()
+        chapters = splitter.detect_chapters(markdown, raw)
+
+        assert len(chapters) == 3  # 第一章 + 2 inferred
+
+    def test_infer_chapters_no_reset(self):
+        """节编号连续递增，不产生任何推断章"""
+        markdown = (
+            "## 第一章 唯章\n\n"
+            "## 第一节 A\n\n" + "a" * 100 + "\n\n"
+            "## 第二节 B\n\n" + "b" * 100 + "\n\n"
+            "## 第三节 C\n\n" + "c" * 100 + "\n\n"
+        )
+        raw = _make_pruned_result([
+            (0, [("paragraph_title", "第一章 唯章")]),
+        ])
+        splitter = ChapterSplitter()
+        chapters = splitter.detect_chapters(markdown, raw)
+
+        assert len(chapters) == 1
+
+    def test_infer_chapter_title_derivation(self):
+        """推断章标题从第一节标题推导"""
+        markdown = (
+            "## 第一章 总则\n\n" + "x" * 200 + "\n\n"
+            "## 第一节 基础概念\n\n" + "a" * 200 + "\n\n"
+            "## 第二节 原则\n\n" + "b" * 200 + "\n\n"
+            "## 第一节 民事法律关系概述\n\n" + "c" * 200 + "\n\n"
+        )
+        raw = _make_pruned_result([
+            (0, [("paragraph_title", "第一章 总则")]),
+        ])
+        splitter = ChapterSplitter()
+        chapters = splitter.detect_chapters(markdown, raw)
+
+        assert len(chapters) == 2
+        assert chapters[1].title == "第二章 民事法律关系"
+
+    def test_infer_chapters_section_num_dedup(self):
+        """同编号节跨页重复不应产生误判"""
+        markdown = (
+            "## 第一章 引言\n\n" + "x" * 200 + "\n\n"
+            "## 第一节 概念\n\n" + "a" * 100 + "\n\n"
+            "## 第一节 概念\n\n" + "b" * 100 + "\n\n"  # 跨页重复
+            "## 第二节 特征\n\n" + "c" * 200 + "\n\n"
+            "## 第一节 新章\n\n" + "d" * 200 + "\n\n"
+        )
+        raw = _make_pruned_result([
+            (0, [("paragraph_title", "第一章 引言")]),
+        ])
+        splitter = ChapterSplitter()
+        chapters = splitter.detect_chapters(markdown, raw)
+
+        assert len(chapters) == 2  # 重复第一节被去重，仅在新章边界产生推断
+
+    def test_infer_chapters_proximity_threshold(self):
+        """距离恰好在阈值边界：299 排除，300 不排除（PROXIMITY_THRESHOLD=300）"""
+        splitter = ChapterSplitter()
+        # known chapter at position 0, verified by title match
+        known = [Chapter(title="第二章", position=0, level="chapter")]
+
+        # "第二章\n\n"(5) + "## 第二节 前置\n\n"(11) + "z"*282 + "\n" + "## 第一节" at pos 299
+        markdown_299 = "第二章\n\n## 第二节 前置\n\n" + "z" * 282 + "\n## 第一节 概念\n\n" + "y" * 200
+        inferred_299 = splitter._infer_chapters_from_section_reset(markdown_299, known)
+        assert len(inferred_299) == 0
+
+        # "第二章\n\n"(5) + "## 第二节 前置\n\n"(11) + "z"*283 + "\n" + "## 第一节" at pos 300
+        markdown_300 = "第二章\n\n## 第二节 前置\n\n" + "z" * 283 + "\n## 第一节 概念\n\n" + "y" * 200
+        inferred_300 = splitter._infer_chapters_from_section_reset(markdown_300, known)
+        assert len(inferred_300) == 1
+
+
 class TestPatterns:
     def test_chapter_pattern_matches_arabic(self):
         assert CHAPTER_PATTERN.search("第一章 概述")
